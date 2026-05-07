@@ -1,58 +1,57 @@
-name: Upload to Arvan Cloud Storage
+name: 🚀 Upload to Arvan (sfgerk)
 
+# این workflow هم می‌تواند به‌صورت دستی از تب Actions اجرا شود،
+# هم با هر push روی شاخهٔ main.
 on:
-  workflow_dispatch:      # می‌توانید دستی اجرا کنید
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+# برای اینکه فایل لاگ بتواند به ریپو push شود، دسترسی نوشتن روی محتویات را فراهم می‌کنیم.
+permissions:
+  contents: write
 
 jobs:
-  upload-and-link:
+  upload:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      # 1. چک‌اوت ریپو (بعداً فایل لاگ را همینجا کامیت می‌کنیم)
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
-      - name: Download Random Test File
+      # 2. دانلود یک فایل تصادفی
+      - name: 🌍 Download random file
         run: |
           echo "Downloading a sample image..."
           curl -v -L -o sample.jpg "https://picsum.photos/600/400.jpg" 2>&1 | tee curl.log
-          ls -lh sample.jpg
+          echo "File size: $(wc -c < sample.jpg) bytes"
 
-      - name: Configure AWS CLI for Arvan
+      # 3. پیکربندی AWS CLI با کلیدهای آروان
+      - name: 🔧 Configure AWS CLI
         env:
-          # اطلاعات اتصال آروان (مستقیماً در کد، فقط برای تست)
           ACCESS_KEY: 0283fe7f-aa44-4041-8859-c0ee33b2d686
           SECRET_KEY: 79e5d6191420eb757b2b4c8cc44611e9bc2b123175953a08956fb8ac2809bc14
           ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
-          BUCKET: my-test-bucket   # <--- نام صندوقچه خود را اینجا بگذارید
         run: |
           aws configure set aws_access_key_id "$ACCESS_KEY" --profile arvan
           aws configure set aws_secret_access_key "$SECRET_KEY" --profile arvan
           aws configure set region us-east-1 --profile arvan
-          echo "AWS CLI configured for Arvan with profile 'arvan'."
+          echo "AWS CLI configured for Arvan."
 
-      - name: Generate Unique Object Key
+      # 4. ساخت یک نام یکتا برای فایل در باکت
+      - name: 🏷 Generate unique object key
         id: vars
         run: echo "object_key=upload-$(date +%s)-${RANDOM}.jpg" >> $GITHUB_OUTPUT
 
-      - name: Ensure Bucket Exists (optional)
+      # 5. آپلود فایل به باکت sfgerk
+      - name: ☁️ Upload file to bucket
+        id: upload
         env:
-          BUCKET: my-test-bucket
-          ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
-        run: |
-          # سعی می‌کنیم صندوقچه را بسازیم، اگر وجود داشت خطا می‌دهد اما مهم نیست
-          aws s3 mb "s3://$BUCKET" \
-            --profile arvan \
-            --endpoint-url "$ENDPOINT" \
-            --region us-east-1 2>&1 || echo "Bucket already exists."
-
-      - name: Upload File to Bucket
-        env:
-          BUCKET: my-test-bucket
+          BUCKET: sfgerk
           ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
           OBJECT_KEY: ${{ steps.vars.outputs.object_key }}
         run: |
-          echo "Uploading sample.jpg to s3://$BUCKET/$OBJECT_KEY..."
+          echo "Uploading sample.jpg to s3://$BUCKET/$OBJECT_KEY ..."
           aws s3 cp sample.jpg "s3://$BUCKET/$OBJECT_KEY" \
             --profile arvan \
             --endpoint-url "$ENDPOINT" \
@@ -60,40 +59,47 @@ jobs:
             --debug 2>&1 | tee upload-debug.log
           echo "Upload exit code: $?"
 
-      - name: Generate Pre-signed URL (1 hour valid)
+      # 6. تولید لینک موقت (Pre-signed URL) معتبر ۱ ساعت
+      - name: 🔗 Generate pre-signed URL
+        id: presign
         env:
-          BUCKET: my-test-bucket
+          BUCKET: sfgerk
           ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
           OBJECT_KEY: ${{ steps.vars.outputs.object_key }}
         run: |
-          echo "Generating pre-signed URL..."
           PRESIGNED=$(aws s3 presign "s3://$BUCKET/$OBJECT_KEY" \
             --profile arvan \
             --endpoint-url "$ENDPOINT" \
             --expires-in 3600 2>&1)
           echo "Pre-signed URL: $PRESIGNED"
-          # Save for later
           echo "presigned_url=$PRESIGNED" >> $GITHUB_OUTPUT
 
-      - name: Collect All Logs
+      # 7. جمع‌آوری تمام لاگ‌ها در یک فایل
+      - name: 📝 Collect logs
         run: |
           echo "=== UPLOAD LOG ===" > upload-log.txt
           echo "Date (UTC): $(date -u)" >> upload-log.txt
-          echo "Bucket: my-test-bucket" >> upload-log.txt
+          echo "Bucket: sfgerk" >> upload-log.txt
           echo "Object: ${{ steps.vars.outputs.object_key }}" >> upload-log.txt
           echo "" >> upload-log.txt
-          echo "--- Pre-signed URL ---" >> upload-log.txt
-          echo "${{ steps.vars.outputs.presigned_url }}" >> upload-log.txt
+          echo "--- Pre-signed URL (valid 1 hour) ---" >> upload-log.txt
+          echo "${{ steps.presign.outputs.presigned_url }}" >> upload-log.txt
+          echo "" >> upload-log.txt
+          echo "--- Direct URL (probably Access Denied) ---" >> upload-log.txt
+          echo "https://sfgerk.s3.ir-thr-at1.arvanstorage.ir/${{ steps.vars.outputs.object_key }}" >> upload-log.txt
           echo "" >> upload-log.txt
           echo "--- Upload Debug Log ---" >> upload-log.txt
           cat upload-debug.log >> upload-log.txt 2>/dev/null || echo "No debug log" >> upload-log.txt
+          echo "" >> upload-log.txt
           echo "--- Curl Log ---" >> upload-log.txt
           cat curl.log >> upload-log.txt 2>/dev/null
+          cat upload-log.txt
 
-      - name: Commit and Push Log File
+      # 8. ذخیره و push فایل لاگ در ریپو
+      - name: ⬆️ Commit and push log
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add upload-log.txt
-          git commit -m "Add upload log from workflow run $GITHUB_RUN_ID" || echo "No changes to commit"
-          git push origin HEAD:${{ github.ref_name }} || echo "Push failed"
+          git commit -m "📋 Upload log for sfgerk (${{ steps.vars.outputs.object_key }})" || echo "No changes to commit"
+          git push origin HEAD:${{ github.ref_name }} || echo "Push failed (check permissions)"
