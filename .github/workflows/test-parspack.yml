@@ -14,29 +14,25 @@ jobs:
       - name: 🧰 نصب پیش‌نیازها
         run: |
           sudo apt-get update -qq && sudo apt-get install -y curl unzip python3-pip ffmpeg
-          pip install yt-dlp
+          pip install yt-dlp boto3
           wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -O /tmp/xray.zip
           unzip -q /tmp/xray.zip -d xray && chmod +x xray/xray
           npm init -y && npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
-          if ! command -v aws &> /dev/null; then
-            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-            unzip awscliv2.zip && sudo ./aws/install
-          fi
 
-      - name: 🔧 تنظیم AWS CLI (برای آپلود و دریافت لینک)
+      - name: 🔧 تنظیم کلیدهای آروان (برای Python)
         env:
           ACCESS_KEY: 0283fe7f-aa44-4041-8859-c0ee33b2d686
           SECRET_KEY: 79e5d6191420eb757b2b4c8cc44611e9bc2b123175953a08956fb8ac2809bc14
           ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
         run: |
-          aws configure set aws_access_key_id "$ACCESS_KEY" --profile arvan
-          aws configure set aws_secret_access_key "$SECRET_KEY" --profile arvan
-          aws configure set region us-east-1 --profile arvan
+          # اطلاعات ساده‌ای برای اسکریپت Python ذخیره می‌کنیم
+          echo "$ACCESS_KEY" > /tmp/arvan_access
+          echo "$SECRET_KEY" > /tmp/arvan_secret
+          echo "$ENDPOINT" > /tmp/arvan_endpoint
 
-      - name: 🤖 اجرای ربات تست (آپلود با پروکسی از طریق AWS CLI)
+      - name: 🤖 اجرای ربات تست (آپلود با Pre-signed PUT + curl)
         env:
           BOT_TOKEN: BDGFHH0HRXYRAJSOXCJCNVNVACILVDGDMXTIIBVVAZJEGZZZYYVHUTCVFJWFNTGU
-          ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
           BUCKET: sfgerk
         run: |
           cat > bot_test.cjs << 'ENDSCRIPT'
@@ -48,10 +44,12 @@ jobs:
           puppeteer.use(StealthPlugin());
 
           const TOKEN = process.env.BOT_TOKEN;
-          const ENDPOINT = process.env.ENDPOINT;
           const BUCKET = process.env.BUCKET;
+          const ENDPOINT_FILE = '/tmp/arvan_endpoint';
           const PROXY_FILE = 'کانفیگ های خوب.txt';
           const COOKIE_FILE = '/tmp/youtube_cookies.txt';
+
+          const ENDPOINT = fs.readFileSync(ENDPOINT_FILE, 'utf8').trim();
 
           let proxies = [], currentProxy = null, xrayProc = null;
           const proxyCookieMap = new Set();
@@ -216,29 +214,52 @@ jobs:
             return out;
           }
 
-          // ********** تابع آپلود با پروکسی (نسخه نهایی) **********
+          // ********** تابع جدید آپلود با Pre-signed PUT + curl از طریق پروکسی **********
           async function uploadToArvanViaProxy(localFile, objectKey) {
             const start = Date.now();
-            log(`☁️ آپلود از طریق پروکسی به S3 (با AWS CLI): ${objectKey}`);
+            log(`☁️ آپلود از طریق پروکسی به S3 (Pre-signed PUT + curl): ${objectKey}`);
             try {
-              // فعال‌سازی پروکسی برای AWS CLI
-              process.env.HTTPS_PROXY = 'socks5h://127.0.0.1:10808';
-              // آپلود فایل
-              execSync(`aws s3 cp "${localFile}" "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --no-verify-ssl`, { stdio:'pipe' });
-              const uploadTime = ((Date.now()-start)/1000).toFixed(1);
+              // دریافت Pre-signed URL از نوع PUT با اسکریپت python
+              const putUrl = execSync(
+                `python3 -c "
+import boto3
+from botocore.client import Config
+access = open('/tmp/arvan_access').read().strip()
+secret = open('/tmp/arvan_secret').read().strip()
+endpoint = open('/tmp/arvan_endpoint').read().strip()
+s3 = boto3.client('s3', endpoint_url=endpoint, aws_access_key_id=access, aws_secret_access_key=secret, config=Config(signature_version='s3v4'), region_name='us-east-1')
+url = s3.generate_presigned_url('put_object', Params={'Bucket': '${BUCKET}', 'Key': '${objectKey}'}, ExpiresIn=3600)
+print(url)
+"`,
+                { encoding: 'utf8' }
+              ).trim();
+              log(`🔗 PUT URL دریافت شد (۱ ساعته): ${putUrl.substring(0,70)}...`);
+
+              // آپلود با curl از طریق پروکسی socks5h
+              const curlStart = Date.now();
+              execSync(`curl --socks5-hostname 127.0.0.1:10808 --upload-file "${localFile}" "${putUrl}" --max-time 300 --silent --show-error`, { stdio:'pipe' });
+              const uploadTime = ((Date.now()-curlStart)/1000).toFixed(1);
               const sizeMB = (fs.statSync(localFile).size/(1024*1024)).toFixed(1);
               const speedMBps = (sizeMB / uploadTime).toFixed(1);
               log(`✅ آپلود کامل در ${uploadTime}s (سرعت: ${speedMBps} MB/s)`);
 
               // ساخت لینک دانلود Pre-signed (GET)
-              const getCmd = `aws s3 presign "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --expires-in 3600`;
-              const downloadUrl = execSync(getCmd, { encoding:'utf8' }).trim();
+              const downloadUrl = execSync(
+                `python3 -c "
+import boto3
+from botocore.client import Config
+access = open('/tmp/arvan_access').read().strip()
+secret = open('/tmp/arvan_secret').read().strip()
+endpoint = open('/tmp/arvan_endpoint').read().strip()
+s3 = boto3.client('s3', endpoint_url=endpoint, aws_access_key_id=access, aws_secret_access_key=secret, config=Config(signature_version='s3v4'), region_name='us-east-1')
+url = s3.generate_presigned_url('get_object', Params={'Bucket': '${BUCKET}', 'Key': '${objectKey}'}, ExpiresIn=3600)
+print(url)
+"`,
+                { encoding: 'utf8' }
+              ).trim();
               log(`🔗 لینک دانلود: ${downloadUrl}`);
-              // پاک‌سازی متغیر پروکسی
-              delete process.env.HTTPS_PROXY;
               return { url: downloadUrl, uploadTime };
             } catch(e) {
-              delete process.env.HTTPS_PROXY;
               err('S3 upload/presign failed:', e.message);
               return null;
             }
