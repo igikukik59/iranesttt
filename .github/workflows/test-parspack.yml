@@ -1,164 +1,99 @@
-name: "Upload to ParsPack with Full Log + Push to Repo"
+name: Upload to Arvan Cloud Storage
 
 on:
-  workflow_dispatch:  # فقط دستی اجرا بشه
-  # اگه می‌خوای با هر push هم اجرا بشه کامنت زیر رو بردار:
-  # push:
-  #   branches: [ main ]
+  workflow_dispatch:      # می‌توانید دستی اجرا کنید
 
 jobs:
-  upload-and-log:
+  upload-and-link:
     runs-on: ubuntu-latest
     steps:
-      - name: ⬇️ Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: true   # برای push دوباره نیازه
+          persist-credentials: true
 
-      - name: 🖨️ Print environment info
+      - name: Download Random Test File
         run: |
-          echo "=== SYSTEM INFO ==="
-          uname -a
-          echo "=== AWS CLI VERSION ==="
-          aws --version || echo "AWS CLI not found (will install)"
-          echo "=== WORKFLOW START TIME ==="
-          date
-
-      # -----------------------------------------------------------------
-      # 1. دانلود فایل نمونه
-      # -----------------------------------------------------------------
-      - name: 📥 Download random test file
-        id: download
-        run: |
-          echo "::group::Downloading sample file"
-          # یک عکس تصادفی از Lorem Picsum
+          echo "Downloading a sample image..."
           curl -v -L -o sample.jpg "https://picsum.photos/600/400.jpg" 2>&1 | tee curl.log
-          echo "::endgroup::"
-          echo "Download exit code: $?" >> debug.log
-          echo "File details:" >> debug.log
-          ls -la sample.jpg >> debug.log 2>&1
-          file sample.jpg >> debug.log 2>&1
-          echo "Curl log:" >> debug.log
-          cat curl.log >> debug.log
+          ls -lh sample.jpg
 
-      # -----------------------------------------------------------------
-      # 2. پیکربندی AWS CLI
-      # -----------------------------------------------------------------
-      - name: 🔧 Configure AWS CLI for ParsPack
+      - name: Configure AWS CLI for Arvan
         env:
-          ACCESS_KEY: NNRPnLgYkTdXW116
-          SECRET_KEY: Duepx7acOGXppSLnMRLxqb1SCG0KbZrX
-          BUCKET: 123q123w123e
-          ENDPOINT: https://c622836.parspack.net
+          # اطلاعات اتصال آروان (مستقیماً در کد، فقط برای تست)
+          ACCESS_KEY: 0283fe7f-aa44-4041-8859-c0ee33b2d686
+          SECRET_KEY: 79e5d6191420eb757b2b4c8cc44611e9bc2b123175953a08956fb8ac2809bc14
+          ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
+          BUCKET: my-test-bucket   # <--- نام صندوقچه خود را اینجا بگذارید
         run: |
-          echo "::group::AWS CLI Configuration"
-          aws configure set aws_access_key_id "$ACCESS_KEY" --profile parspack
-          aws configure set aws_secret_access_key "$SECRET_KEY" --profile parspack
-          aws configure set region us-east-1 --profile parspack
-          echo "Profile 'parspack' configured."
-          echo "::endgroup::"
-          echo "AWS CLI profiles:" >> debug.log
-          aws configure list --profile parspack >> debug.log 2>&1
+          aws configure set aws_access_key_id "$ACCESS_KEY" --profile arvan
+          aws configure set aws_secret_access_key "$SECRET_KEY" --profile arvan
+          aws configure set region us-east-1 --profile arvan
+          echo "AWS CLI configured for Arvan with profile 'arvan'."
 
-      # -----------------------------------------------------------------
-      # 3. ساخت یک نام یکتا برای فایل در باکت
-      # -----------------------------------------------------------------
-      - name: 🏷️ Generate unique object key
+      - name: Generate Unique Object Key
         id: vars
-        run: |
-          UNIQUE_KEY="test-$(date +%s)-${RANDOM}.jpg"
-          echo "object_key=$UNIQUE_KEY" >> $GITHUB_OUTPUT
-          echo "Generated key: $UNIQUE_KEY" >> debug.log
+        run: echo "object_key=upload-$(date +%s)-${RANDOM}.jpg" >> $GITHUB_OUTPUT
 
-      # -----------------------------------------------------------------
-      # 4. آپلود فایل به باکت
-      # -----------------------------------------------------------------
-      - name: ☁️ Upload file to bucket (with full debug)
-        id: upload
+      - name: Ensure Bucket Exists (optional)
         env:
-          BUCKET: 123q123w123e
-          ENDPOINT: https://c622836.parspack.net
+          BUCKET: my-test-bucket
+          ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
+        run: |
+          # سعی می‌کنیم صندوقچه را بسازیم، اگر وجود داشت خطا می‌دهد اما مهم نیست
+          aws s3 mb "s3://$BUCKET" \
+            --profile arvan \
+            --endpoint-url "$ENDPOINT" \
+            --region us-east-1 2>&1 || echo "Bucket already exists."
+
+      - name: Upload File to Bucket
+        env:
+          BUCKET: my-test-bucket
+          ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
           OBJECT_KEY: ${{ steps.vars.outputs.object_key }}
         run: |
-          echo "::group::Upload details"
-          echo "Uploading sample.jpg..."
-          echo "Bucket: $BUCKET"
-          echo "Object: $OBJECT_KEY"
-          echo "Endpoint: $ENDPOINT"
-          echo "Command: aws s3 cp sample.jpg s3://$BUCKET/$OBJECT_KEY --profile parspack --endpoint-url $ENDPOINT --no-verify-ssl"
-          set -o pipefail
+          echo "Uploading sample.jpg to s3://$BUCKET/$OBJECT_KEY..."
           aws s3 cp sample.jpg "s3://$BUCKET/$OBJECT_KEY" \
-            --profile parspack \
+            --profile arvan \
             --endpoint-url "$ENDPOINT" \
             --no-verify-ssl \
             --debug 2>&1 | tee upload-debug.log
-          UPLOAD_EXIT=$?
-          echo "::endgroup::"
-          echo "Upload exit code: $UPLOAD_EXIT" >> debug.log
-          if [ $UPLOAD_EXIT -ne 0 ]; then
-            echo "ERROR: Upload failed with exit code $UPLOAD_EXIT" | tee -a debug.log
-            exit $UPLOAD_EXIT
-          fi
-          echo "Upload succeeded." | tee -a debug.log
+          echo "Upload exit code: $?"
 
-      # -----------------------------------------------------------------
-      # 5. ساختن لینک موقت (Pre-signed URL)
-      # -----------------------------------------------------------------
-      - name: 🔗 Generate pre-signed URL
-        id: presign
+      - name: Generate Pre-signed URL (1 hour valid)
         env:
-          BUCKET: 123q123w123e
-          ENDPOINT: https://c622836.parspack.net
+          BUCKET: my-test-bucket
+          ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
           OBJECT_KEY: ${{ steps.vars.outputs.object_key }}
         run: |
-          echo "::group::Pre-signed URL generation"
+          echo "Generating pre-signed URL..."
           PRESIGNED=$(aws s3 presign "s3://$BUCKET/$OBJECT_KEY" \
-            --profile parspack \
+            --profile arvan \
             --endpoint-url "$ENDPOINT" \
             --expires-in 3600 2>&1)
-          echo "Pre-signed URL exit code: $?" >> debug.log
-          echo "Pre-signed URL: $PRESIGNED" >> debug.log
-          echo "::endgroup::"
-          # ذخیره توی output برای مرحله بعد
+          echo "Pre-signed URL: $PRESIGNED"
+          # Save for later
           echo "presigned_url=$PRESIGNED" >> $GITHUB_OUTPUT
-          echo "Direct URL: https://$ENDPOINT/$BUCKET/$OBJECT_KEY" >> debug.log
 
-      # -----------------------------------------------------------------
-      # 6. جمع‌آوری تمام لاگ‌ها در یک فایل نهایی
-      # -----------------------------------------------------------------
-      - name: 📝 Combine all logs into upload-log.txt
+      - name: Collect All Logs
         run: |
-          echo "==================== UPLOAD LOG ====================" > upload-log.txt
-          echo "" >> upload-log.txt
-          echo "Workflow run ID: $GITHUB_RUN_ID" >> upload-log.txt
-          echo "Run attempt: $GITHUB_RUN_ATTEMPT" >> upload-log.txt
+          echo "=== UPLOAD LOG ===" > upload-log.txt
           echo "Date (UTC): $(date -u)" >> upload-log.txt
+          echo "Bucket: my-test-bucket" >> upload-log.txt
+          echo "Object: ${{ steps.vars.outputs.object_key }}" >> upload-log.txt
           echo "" >> upload-log.txt
-          echo "--- DEBUG LOG ---" >> upload-log.txt
-          cat debug.log >> upload-log.txt 2>/dev/null || echo "No debug.log" >> upload-log.txt
+          echo "--- Pre-signed URL ---" >> upload-log.txt
+          echo "${{ steps.vars.outputs.presigned_url }}" >> upload-log.txt
           echo "" >> upload-log.txt
-          echo "--- UPLOAD DEBUG (from AWS CLI) ---" >> upload-log.txt
-          cat upload-debug.log >> upload-log.txt 2>/dev/null || echo "No upload debug log" >> upload-log.txt
-          echo "" >> upload-log.txt
-          echo "--- FINAL URLs ---" >> upload-log.txt
-          echo "Direct URL: https://c622836.parspack.net/${{ steps.vars.outputs.object_key }}" >> upload-log.txt
-          echo "Pre-signed URL: ${{ steps.presign.outputs.presigned_url }}" >> upload-log.txt
-          echo "" >> upload-log.txt
-          echo "==================== END LOG ====================" >> upload-log.txt
+          echo "--- Upload Debug Log ---" >> upload-log.txt
+          cat upload-debug.log >> upload-log.txt 2>/dev/null || echo "No debug log" >> upload-log.txt
+          echo "--- Curl Log ---" >> upload-log.txt
+          cat curl.log >> upload-log.txt 2>/dev/null
 
-      # -----------------------------------------------------------------
-      # 7. نمایش لاگ توی کنسول (برای راحتی)
-      # -----------------------------------------------------------------
-      - name: 📣 Print log to console
-        run: cat upload-log.txt
-
-      # -----------------------------------------------------------------
-      # 8. کامیت و پوش فایل لاگ به ریپازیتوری
-      # -----------------------------------------------------------------
-      - name: ⬆️ Commit and push log file to repo
+      - name: Commit and Push Log File
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add upload-log.txt
-          git commit -m "📋 Add upload log from workflow run $GITHUB_RUN_ID" || echo "No changes to commit"
-          git push origin HEAD:${{ github.ref_name }} || echo "Push failed (maybe not allowed?)"
+          git commit -m "Add upload log from workflow run $GITHUB_RUN_ID" || echo "No changes to commit"
+          git push origin HEAD:${{ github.ref_name }} || echo "Push failed"
