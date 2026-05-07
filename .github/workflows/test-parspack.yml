@@ -172,6 +172,7 @@ jobs:
               '--concurrent-fragments', '32',
               '--buffer-size', '2048K',
               '--no-playlist',
+              '--js-runtimes', 'none',
               '--format', fmt,
               '--merge-output-format', 'mp4',
               '--output', out,
