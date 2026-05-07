@@ -1,105 +1,337 @@
-name: 🚀 Upload to Arvan (sfgerk)
+const { execSync, spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
 
-# این workflow هم می‌تواند به‌صورت دستی از تب Actions اجرا شود،
-# هم با هر push روی شاخهٔ main.
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
+// ======================== تنظیمات ========================
+const TOKEN = process.env.RUBIKA_BOT_TOKEN;
+const ENDPOINT = process.env.ARVAN_ENDPOINT || 'https://s3.ir-thr-at1.arvanstorage.ir';
+const BUCKET = process.env.BUCKET || 'sfgerk';
+const PROXY_FILE = 'کانفیگ های خوب.txt';   // باید در ریپو وجود داشته باشد
+const COOKIE_FILE = '/tmp/youtube_cookies.txt';
+const LOG_FILE = 'bot_test_log.txt';
 
-# برای اینکه فایل لاگ بتواند به ریپو push شود، دسترسی نوشتن روی محتویات را فراهم می‌کنیم.
-permissions:
-  contents: write
+let proxies = [];
+let currentProxy = null;
+let xrayProc = null;
+const proxyCookieMap = new Set();
 
-jobs:
-  upload:
-    runs-on: ubuntu-latest
-    steps:
-      # 1. چک‌اوت ریپو (بعداً فایل لاگ را همینجا کامیت می‌کنیم)
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+// ======================== لاگ‌گیری ========================
+function ts() { return new Date().toISOString().replace('T',' ').substring(0,19); }
+function log(...args) {
+  const msg = `[${ts()}] ${args.join(' ')}`;
+  console.log(msg);
+  try { fs.appendFileSync(LOG_FILE, msg + '\n'); } catch(_) {}
+}
+function err(...args) {
+  const msg = `[${ts()}] ❌ ${args.join(' ')}`;
+  console.error(msg);
+  try { fs.appendFileSync(LOG_FILE, msg + '\n'); } catch(_) {}
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-      # 2. دانلود یک فایل تصادفی
-      - name: 🌍 Download random file
-        run: |
-          echo "Downloading a sample image..."
-          curl -v -L -o sample.jpg "https://picsum.photos/600/400.jpg" 2>&1 | tee curl.log
-          echo "File size: $(wc -c < sample.jpg) bytes"
+// ======================== Rubika API ========================
+const BASE = `https://botapi.rubika.ir/v3/${TOKEN}`;
+async function api(method, body = {}) {
+  const url = `${BASE}/${method}`;
+  for (let i = 0; i < 5; i++) {
+    try {
+      const ctrl = new AbortController();
+      const id = setTimeout(() => ctrl.abort(), 30000);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: ctrl.signal
+      });
+      clearTimeout(id);
+      const text = await res.text();
+      if (text.startsWith('<!DOCTYPE html>') || text.includes('nginx')) {
+        await sleep(2000 * (i + 1));
+        continue;
+      }
+      return JSON.parse(text);
+    } catch (e) {
+      if (i < 4) { await sleep(2000 * (i + 1)); continue; }
+      return { error: true, message: e.message };
+    }
+  }
+}
+async function sendMessage(chatId, text) {
+  return await api('sendMessage', { chat_id: chatId, text });
+}
 
-      # 3. پیکربندی AWS CLI با کلیدهای آروان
-      - name: 🔧 Configure AWS CLI
-        env:
-          ACCESS_KEY: 0283fe7f-aa44-4041-8859-c0ee33b2d686
-          SECRET_KEY: 79e5d6191420eb757b2b4c8cc44611e9bc2b123175953a08956fb8ac2809bc14
-          ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
-        run: |
-          aws configure set aws_access_key_id "$ACCESS_KEY" --profile arvan
-          aws configure set aws_secret_access_key "$SECRET_KEY" --profile arvan
-          aws configure set region us-east-1 --profile arvan
-          echo "AWS CLI configured for Arvan."
+// ======================== پروکسی و Xray ========================
+function parseURI(uri) {
+  try {
+    const u = new URL(uri);
+    return {
+      protocol: u.protocol.replace(':',''),
+      uuid: u.username,
+      address: u.hostname,
+      port: u.port,
+      params: Object.fromEntries(u.searchParams.entries())
+    };
+  } catch(_) { return null; }
+}
+function generateXrayConfig(uri) {
+  const p = parseURI(uri); if (!p) return null;
+  const inbound = { port: 10808, protocol: 'socks', settings: { auth: 'noauth', udp: true } };
+  let outbound = { protocol: p.protocol, streamSettings: { network: p.params.type || 'tcp' } };
+  if (p.protocol === 'trojan') outbound.settings = { servers: [{ address: p.address, port: parseInt(p.port), password: p.uuid }] };
+  else outbound.settings = { vnext: [{ address: p.address, port: parseInt(p.port), users: [{ id: p.uuid, encryption: p.params.encryption || 'none', flow: p.params.flow || '' }] }] };
+  const net = p.params.type || 'tcp'; outbound.streamSettings.network = net;
+  if (net === 'ws') outbound.streamSettings.wsSettings = { path: p.params.path || '/', headers: p.params.host ? { Host: p.params.host } : {} };
+  const sec = p.params.security || 'none';
+  if (sec === 'tls' || sec === 'reality') {
+    outbound.streamSettings.security = sec;
+    const tls = { serverName: p.params.sni || p.address };
+    if (sec === 'reality') { tls.fingerprint = p.params.fp || 'chrome'; tls.publicKey = p.params.pbk || ''; tls.shortId = p.params.sid || ''; tls.spiderX = ''; }
+    if (p.params.allowInsecure === '1') tls.allowInsecure = true;
+    if (p.params.alpn) tls.alpn = p.params.alpn.split(',');
+    outbound.streamSettings.tlsSettings = tls;
+  } else outbound.streamSettings.security = 'none';
+  return { inbounds: [inbound], outbounds: [outbound] };
+}
+async function startXray(uri, idx) {
+  const config = generateXrayConfig(uri); if (!config) return null;
+  const cfgPath = `/tmp/xray_test_${idx}.json`;
+  fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2));
+  const proc = spawn(path.join(process.cwd(), 'xray', 'xray'), ['run', '-config', cfgPath], { stdio: 'pipe' });
+  await sleep(1500);
+  return proc;
+}
+function testCurlQuick() {
+  try {
+    execSync('curl --socks5 127.0.0.1:10808 --max-time 3 -o /dev/null -s http://www.gstatic.com/generate_204', { stdio:'pipe' });
+    return true;
+  } catch(_) { return false; }
+}
+async function switchToRandomProxy(reason = '') {
+  if (xrayProc) { xrayProc.kill(); await sleep(500); xrayProc = null; }
+  currentProxy = null;
+  if (proxies.length === 0) return false;
+  for (let i = 0; i < proxies.length; i++) {
+    const idx = Math.floor(Math.random() * proxies.length);
+    const candidate = proxies[idx];
+    log(`🔀 تلاش پروکسی (${reason}): ${candidate.substring(0,60)}...`);
+    xrayProc = await startXray(candidate, Date.now());
+    await sleep(1500);
+    if (testCurlQuick()) {
+      currentProxy = candidate;
+      if (!proxyCookieMap.has(currentProxy)) {
+        try { fs.unlinkSync(COOKIE_FILE); } catch(_) {}
+      }
+      return true;
+    } else {
+      if (xrayProc) { xrayProc.kill(); await sleep(500); xrayProc = null; }
+    }
+  }
+  return false;
+}
 
-      # 4. ساخت یک نام یکتا برای فایل در باکت
-      - name: 🏷 Generate unique object key
-        id: vars
-        run: echo "object_key=upload-$(date +%s)-${RANDOM}.jpg" >> $GITHUB_OUTPUT
+// ======================== کوکی‌گیری یوتیوب ========================
+async function grabCookies() {
+  if (!currentProxy) return false;
+  if (proxyCookieMap.has(currentProxy)) return true;
+  let browser;
+  try {
+    browser = await puppeteer.launch({ headless:'new', args:['--no-sandbox','--disable-setuid-sandbox','--proxy-server=socks5://127.0.0.1:10808','--disable-dev-shm-usage'] });
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0');
+    await page.goto('https://www.youtube.com/', { waitUntil:'networkidle2', timeout:40000 });
+    await sleep(3000);
+    const cookies = await page.cookies();
+    await browser.close();
+    if (cookies.length===0) return false;
+    const lines = ['# Netscape HTTP Cookie File', ''];
+    cookies.forEach(c => {
+      const domain = c.domain.startsWith('.') ? c.domain : '.' + c.domain;
+      const exp = c.expires>0 ? Math.floor(c.expires) : 0;
+      lines.push(`${domain}\tTRUE\t${c.path}\t${c.secure ? 'TRUE' : 'FALSE'}\t${exp}\t${c.name}\t${c.value}`);
+    });
+    fs.writeFileSync(COOKIE_FILE, lines.join('\n'));
+    proxyCookieMap.add(currentProxy);
+    log('🍪 کوکی جدید دریافت شد.');
+    return true;
+  } catch(e) { err('خطای کوکی:', e.message); if (browser) await browser.close().catch(()=>{}); return false; }
+}
 
-      # 5. آپلود فایل به باکت sfgerk
-      - name: ☁️ Upload file to bucket
-        id: upload
-        env:
-          BUCKET: sfgerk
-          ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
-          OBJECT_KEY: ${{ steps.vars.outputs.object_key }}
-        run: |
-          echo "Uploading sample.jpg to s3://$BUCKET/$OBJECT_KEY ..."
-          aws s3 cp sample.jpg "s3://$BUCKET/$OBJECT_KEY" \
-            --profile arvan \
-            --endpoint-url "$ENDPOINT" \
-            --no-verify-ssl \
-            --debug 2>&1 | tee upload-debug.log
-          echo "Upload exit code: $?"
+// ======================== دانلود از یوتیوب ========================
+async function downloadYouTube(url) {
+  if (!currentProxy) return null;
+  if (!(await grabCookies())) return null;
+  const fmt = `bestvideo[height<=480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/best[height<=480][ext=mp4]`;
+  const out = '/tmp/video_raw.mp4';
+  const args = [
+    '--cookies', COOKIE_FILE,
+    '--proxy', `socks5h://127.0.0.1:10808`,
+    '-N', '32',
+    '--concurrent-fragments', '32',
+    '--buffer-size', '2048K',
+    '--no-playlist',
+    '--format', fmt,
+    '--merge-output-format', 'mp4',
+    '--output', out,
+    url
+  ];
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const proc = spawn('yt-dlp', args, { stdio: ['ignore','pipe','pipe'] });
+    let stderr = '';
+    proc.stderr.on('data', d => { stderr += d.toString(); });
+    proc.on('close', code => {
+      const dlTime = (Date.now() - start) / 1000;
+      if (code === 0 && fs.existsSync(out) && fs.statSync(out).size > 0) {
+        const sizeMB = (fs.statSync(out).size / (1024*1024)).toFixed(1);
+        log(`✅ دانلود کامل | حجم: ${sizeMB}MB | زمان: ${dlTime.toFixed(1)}s`);
+        resolve({ path: out, time: dlTime, sizeMB });
+      } else {
+        log(`❌ دانلود شکست (exit ${code})`);
+        if (stderr) log('stderr:', stderr.substring(0,300));
+        try { fs.unlinkSync(out); } catch(_) {}
+        resolve({ error: true, stderr });
+      }
+    });
+    proc.on('error', e => {
+      err('خطای spawn yt-dlp:', e.message);
+      resolve({ error: true });
+    });
+  });
+}
 
-      # 6. تولید لینک موقت (Pre-signed URL) معتبر ۱ ساعت
-      - name: 🔗 Generate pre-signed URL
-        id: presign
-        env:
-          BUCKET: sfgerk
-          ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
-          OBJECT_KEY: ${{ steps.vars.outputs.object_key }}
-        run: |
-          PRESIGNED=$(aws s3 presign "s3://$BUCKET/$OBJECT_KEY" \
-            --profile arvan \
-            --endpoint-url "$ENDPOINT" \
-            --expires-in 3600 2>&1)
-          echo "Pre-signed URL: $PRESIGNED"
-          echo "presigned_url=$PRESIGNED" >> $GITHUB_OUTPUT
+// ======================== تبدیل به MP4 (در صورت نیاز) ========================
+async function makeCompatible(inputPath) {
+  const v = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim();
+  const a = execSync(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim();
+  const ext = path.extname(inputPath).toLowerCase();
+  if (ext === '.mp4' && v==='h264' && a==='aac') return inputPath;
+  log('🔄 تبدیل ظرف (کپی) به MP4...');
+  const out = inputPath.replace(/\.\w+$/, '_ok.mp4');
+  execSync(`ffmpeg -i "${inputPath}" -c copy -movflags +faststart "${out}"`, {stdio:'ignore', timeout:300000});
+  return out;
+}
 
-      # 7. جمع‌آوری تمام لاگ‌ها در یک فایل
-      - name: 📝 Collect logs
-        run: |
-          echo "=== UPLOAD LOG ===" > upload-log.txt
-          echo "Date (UTC): $(date -u)" >> upload-log.txt
-          echo "Bucket: sfgerk" >> upload-log.txt
-          echo "Object: ${{ steps.vars.outputs.object_key }}" >> upload-log.txt
-          echo "" >> upload-log.txt
-          echo "--- Pre-signed URL (valid 1 hour) ---" >> upload-log.txt
-          echo "${{ steps.presign.outputs.presigned_url }}" >> upload-log.txt
-          echo "" >> upload-log.txt
-          echo "--- Direct URL (probably Access Denied) ---" >> upload-log.txt
-          echo "https://sfgerk.s3.ir-thr-at1.arvanstorage.ir/${{ steps.vars.outputs.object_key }}" >> upload-log.txt
-          echo "" >> upload-log.txt
-          echo "--- Upload Debug Log ---" >> upload-log.txt
-          cat upload-debug.log >> upload-log.txt 2>/dev/null || echo "No debug log" >> upload-log.txt
-          echo "" >> upload-log.txt
-          echo "--- Curl Log ---" >> upload-log.txt
-          cat curl.log >> upload-log.txt 2>/dev/null
-          cat upload-log.txt
+// ======================== آپلود به S3 و دریافت لینک Pre-signed ========================
+async function uploadToS3AndPresign(localFile, objectKey) {
+  const startUpload = Date.now();
+  log(`☁️ شروع آپلود به S3: ${objectKey}`);
+  try {
+    const cmd = `aws s3 cp "${localFile}" "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --no-verify-ssl`;
+    execSync(cmd, { stdio: 'pipe' });   // خروجی کمتر
+    const uploadTime = ((Date.now() - startUpload) / 1000).toFixed(1);
+    log(`✅ آپلود کامل در ${uploadTime}s`);
+    const presignCmd = `aws s3 presign "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --expires-in 3600`;
+    const url = execSync(presignCmd, { encoding: 'utf8' }).trim();
+    log(`🔗 لینک Pre-signed: ${url}`);
+    return { url, uploadTime };
+  } catch (e) {
+    err('S3 upload/presign failed:', e.message);
+    return null;
+  }
+}
 
-      # 8. ذخیره و push فایل لاگ در ریپو
-      - name: ⬆️ Commit and push log
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add upload-log.txt
-          git commit -m "📋 Upload log for sfgerk (${{ steps.vars.outputs.object_key }})" || echo "No changes to commit"
-          git push origin HEAD:${{ github.ref_name }} || echo "Push failed (check permissions)"
+// ======================== حلقه اصلی ========================
+(async () => {
+  log('🚀 شروع ربات تست...');
+
+  // بارگذاری پروکسی‌ها
+  if (!fs.existsSync(PROXY_FILE)) { err(`❌ فایل ${PROXY_FILE} وجود ندارد`); process.exit(1); }
+  proxies = fs.readFileSync(PROXY_FILE, 'utf8').split('\n').map(l=>l.trim()).filter(l=>/^(vless|trojan|ss|vmess):\/\//.test(l));
+  if (proxies.length === 0) { err('هیچ پروکسی یافت نشد'); process.exit(1); }
+  log(`📋 ${proxies.length} پروکسی بارگذاری شد.`);
+
+  if (!(await switchToRandomProxy('شروع'))) { err('پروکسی سالم پیدا نشد'); process.exit(1); }
+  log('✅ پروکسی اولیه تنظیم شد.');
+
+  // بررسی توکن ربات
+  const me = await api('getMe');
+  if (me?.data?.bot?.username) log('✅ ربات:', me.data.bot.username);
+  else { err('توکن ربات نامعتبر است'); process.exit(1); }
+
+  // صرفاً منتظر یک لینک یوتیوب
+  log('⏳ منتظر پیام حاوی لینک یوتیوب...');
+  let offset = null;
+  let processed = false;
+
+  // محدودیت زمانی: ۲۰ دقیقه منتظر می‌مانیم تا پیامی برسد
+  const deadline = Date.now() + 20 * 60 * 1000;
+
+  const ytReg = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]+)/;
+
+  while (Date.now() < deadline && !processed) {
+    try {
+      const res = await api('getUpdates', { limit: 5, offset_id: offset });
+      if (res.error) { await sleep(5000); continue; }
+      const updates = res?.data?.updates;
+      if (!updates || updates.length === 0) { await sleep(4000); continue; }
+
+      for (const u of updates) {
+        if (u.type !== 'NewMessage') continue;
+        const chatId = u.chat_id;
+        const text = u.new_message?.text?.trim();
+        if (!text) continue;
+        log(`📩 پیام از ${chatId}: ${text.substring(0,80)}`);
+        const m = text.match(ytReg);
+        if (!m) {
+          await sendMessage(chatId, '👋 لطفاً یک لینک یوتیوب کامل بفرستید.');
+          continue;
+        }
+        const videoUrl = m[0];
+        log(`🎬 لینک دریافت شد: ${videoUrl}`);
+        await sendMessage(chatId, '⏳ در حال بررسی و دانلود...');
+
+        // کل زمان
+        const totalStart = Date.now();
+
+        // دانلود
+        const dlStart = Date.now();
+        const dlResult = await downloadYouTube(videoUrl);
+        if (!dlResult || dlResult.error) {
+          await sendMessage(chatId, '❌ دانلود ناموفق. لطفاً بعداً امتحان کنید.');
+          processed = true;
+          break;
+        }
+        const dlTime = dlResult.time;
+
+        // تبدیل
+        let videoPath = dlResult.path;
+        const compatPath = await makeCompatible(videoPath);
+        if (compatPath !== videoPath) {
+          try { fs.unlinkSync(videoPath); } catch(_) {}
+          videoPath = compatPath;
+        }
+        log(`📁 فایل نهایی: ${videoPath} (${(fs.statSync(videoPath).size/1024/1024).toFixed(1)}MB)`);
+
+        // آپلود به S3
+        const objectKey = `youtube-${Date.now()}-${m[1]}.mp4`;
+        const s3Result = await uploadToS3AndPresign(videoPath, objectKey);
+        if (!s3Result) {
+          await sendMessage(chatId, '❌ آپلود روی فضای ابری ناموفق بود.');
+          processed = true;
+          break;
+        }
+
+        const totalTime = ((Date.now() - totalStart)/1000).toFixed(1);
+        const message = 
+          `✅ **ویدیو آماده شد!**\n\n` +
+          `📥 زمان دانلود: ${dlTime.toFixed(1)} ثانیه\n` +
+          `☁️ زمان آپلود: ${s3Result.uploadTime} ثانیه\n` +
+          `⏱️ کل زمان: ${totalTime} ثانیه\n\n` +
+          `🔗 **لینک دانلود (معتبر ۱ ساعت):**\n${s3Result.url}`;
+        await sendMessage(chatId, message);
+        log('📨 لینک برای کاربر ارسال شد.');
+        processed = true;
+        break;
+      }
+
+      if (res.data?.next_offset_id) offset = res.data.next_offset_id;
+    } catch (e) { err('خطا در حلقه:', e.message); await sleep(5000); }
+  }
+
+  if (xrayProc) xrayProc.kill();
+  log('⏹️ ربات تست خاتمه یافت.');
+  process.exit(0);
+})();
