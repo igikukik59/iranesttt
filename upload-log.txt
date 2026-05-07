@@ -1,224 +1,224 @@
 === UPLOAD LOG ===
-Date (UTC): Thu May  7 13:21:36 UTC 2026
+Date (UTC): Thu May  7 13:33:48 UTC 2026
 Bucket: sfgerk
-Object: upload-1778160087-20738.jpg
+Object: upload-1778160824-9573.jpg
 
 --- Pre-signed URL (valid 1 hour) ---
-https://s3.ir-thr-at1.arvanstorage.ir/sfgerk/upload-1778160087-20738.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0283fe7f-aa44-4041-8859-c0ee33b2d686%2F20260507%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260507T132136Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=5989b152d46e051a21b7b7f03151a22c0f91dc12350b40a2bd43fc3695d29c8e
+https://s3.ir-thr-at1.arvanstorage.ir/sfgerk/upload-1778160824-9573.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0283fe7f-aa44-4041-8859-c0ee33b2d686%2F20260507%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260507T133348Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=7e4c16fd3a8751caab4a4d0779ee9dcc989db293aee5474a4baa216e980bda5b
 
 --- Direct URL (probably Access Denied) ---
-https://sfgerk.s3.ir-thr-at1.arvanstorage.ir/upload-1778160087-20738.jpg
+https://sfgerk.s3.ir-thr-at1.arvanstorage.ir/upload-1778160824-9573.jpg
 
 --- Upload Debug Log ---
-2026-05-07 13:21:28,090 - MainThread - awscli.clidriver - DEBUG - CLI version: aws-cli/2.34.30 Python/3.14.4 Linux/6.17.0-1010-azure exe/x86_64.ubuntu.24
-2026-05-07 13:21:28,090 - MainThread - awscli.clidriver - DEBUG - Arguments entered to CLI: ['s3', 'cp', 'sample.jpg', 's3://sfgerk/upload-1778160087-20738.jpg', '--profile', 'arvan', '--endpoint-url', 'https://s3.ir-thr-at1.arvanstorage.ir', '--no-verify-ssl', '--debug']
-2026-05-07 13:21:28,099 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_s3 at 0x7f84d77821f0>
-2026-05-07 13:21:28,099 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_ddb at 0x7f84d7a7b740>
-2026-05-07 13:21:28,100 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.configure.configure.ConfigureCommand'>>
-2026-05-07 13:21:28,100 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function change_name at 0x7f84d7bc4040>
-2026-05-07 13:21:28,100 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function change_name at 0x7f84d7bc7ed0>
-2026-05-07 13:21:28,100 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_history_commands at 0x7f84d7a210c0>
-2026-05-07 13:21:28,100 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.devcommands.CLIDevCommand'>>
-2026-05-07 13:21:28,100 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.login.login.LoginCommand'>>
-2026-05-07 13:21:28,100 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.login.logout.LogoutCommand'>>
-2026-05-07 13:21:28,100 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_waiters at 0x7f84d7799f30>
-2026-05-07 13:21:28,100 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method AliasSubCommandInjector.on_building_command_table of <awscli.alias.AliasSubCommandInjector object at 0x7f84d792be00>>
-2026-05-07 13:21:28,100 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/data/cli.json
-2026-05-07 13:21:28,103 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_types at 0x7f84d79f4a90>
-2026-05-07 13:21:28,103 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function no_sign_request at 0x7f84d79f4e00>
-2026-05-07 13:21:28,103 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_verify_ssl at 0x7f84d79f4d50>
-2026-05-07 13:21:28,103 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_cli_read_timeout at 0x7f84d79f4f60>
-2026-05-07 13:21:28,103 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_cli_connect_timeout at 0x7f84d79f4eb0>
-2026-05-07 13:21:28,103 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <built-in method update of dict object at 0x7f84d7832b00>
-2026-05-07 13:21:28,103 - MainThread - botocore.session - DEBUG - Setting config variable for profile to 'arvan'
-2026-05-07 13:21:28,103 - MainThread - awscli.clidriver - DEBUG - CLI version: aws-cli/2.34.30 Python/3.14.4 Linux/6.17.0-1010-azure exe/x86_64.ubuntu.24
-2026-05-07 13:21:28,104 - MainThread - awscli.clidriver - DEBUG - Arguments entered to CLI: ['s3', 'cp', 'sample.jpg', 's3://sfgerk/upload-1778160087-20738.jpg', '--profile', 'arvan', '--endpoint-url', 'https://s3.ir-thr-at1.arvanstorage.ir', '--no-verify-ssl', '--debug']
-2026-05-07 13:21:28,104 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function add_timestamp_parser at 0x7f84d77994e0>
-2026-05-07 13:21:28,104 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function register_uri_param_handler at 0x7f84d99cc460>
-2026-05-07 13:21:28,104 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function add_binary_formatter at 0x7f84d7e0e4b0>
-2026-05-07 13:21:28,104 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function no_pager_handler at 0x7f84d7dc0670>
-2026-05-07 13:21:28,104 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function inject_assume_role_provider_cache at 0x7f84d7e0df30>
-2026-05-07 13:21:28,106 - MainThread - botocore.utils - DEBUG - IMDS ENDPOINT: http://169.254.169.254/
-2026-05-07 13:21:28,107 - MainThread - botocore.credentials - DEBUG - Skipping environment variable credential check because profile name was explicitly set.
-2026-05-07 13:21:28,107 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function attach_history_handler at 0x7f84d79f5380>
-2026-05-07 13:21:28,107 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function inject_json_file_cache at 0x7f84d7a6e4b0>
-2026-05-07 13:21:28,107 - MainThread - botocore.hooks - DEBUG - Event building-command-table.s3: calling handler <function add_waiters at 0x7f84d7799f30>
-2026-05-07 13:21:28,107 - MainThread - botocore.hooks - DEBUG - Event building-command-table.s3: calling handler <bound method AliasSubCommandInjector.on_building_command_table of <awscli.alias.AliasSubCommandInjector object at 0x7f84d792be00>>
-2026-05-07 13:21:28,108 - MainThread - botocore.hooks - DEBUG - Event building-command-table.s3_cp: calling handler <function add_waiters at 0x7f84d7799f30>
-2026-05-07 13:21:28,108 - MainThread - botocore.hooks - DEBUG - Event building-command-table.s3_cp: calling handler <bound method AliasSubCommandInjector.on_building_command_table of <awscli.alias.AliasSubCommandInjector object at 0x7f84d792be00>>
-2026-05-07 13:21:28,109 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.paths: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,109 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.dryrun: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,109 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,109 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.quiet: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,109 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,109 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.anonymous: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.acl: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.follow-symlinks: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.anonymous: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-c: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-c-key: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-kms-key-id: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-c-copy-source: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-c-copy-source-key: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,110 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.storage-class: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.grants: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.website-redirect: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.content-type: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.cache-control: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.content-disposition: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.content-encoding: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.content-language: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.expires: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.source-region: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.only-show-errors: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.anonymous: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.progress-frequency: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,111 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.progress-multiline: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.page-size: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.ignore-glacier-warnings: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.force-glacier-transfer: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.request-payer: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.checksum-mode: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.checksum-algorithm: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.metadata: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.copy-props: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,112 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,113 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.metadata-directive: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,113 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.expected-size: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,113 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.anonymous: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,113 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.case-conflict: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,113 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,113 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.no-overwrite: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7f84d783c980>
-2026-05-07 13:21:28,113 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7f84d7929a90>
-2026-05-07 13:21:28,113 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role
-2026-05-07 13:21:28,113 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role-with-web-identity
-2026-05-07 13:21:28,113 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: sso
-2026-05-07 13:21:28,113 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: shared-credentials-file
-2026-05-07 13:21:28,114 - MainThread - botocore.credentials - INFO - Found credentials in shared credentials file: ~/.aws/credentials
-2026-05-07 13:21:28,125 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/endpoints.json
-2026-05-07 13:21:28,147 - MainThread - botocore.hooks - DEBUG - Event choose-service-name: calling handler <function handle_service_name_alias at 0x7f84daefb320>
-2026-05-07 13:21:28,169 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/s3/2006-03-01/service-2.json
-2026-05-07 13:21:28,183 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/s3/2006-03-01/service-2.sdk-extras.json
-2026-05-07 13:21:28,202 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/s3/2006-03-01/endpoint-rule-set-1.json
-2026-05-07 13:21:28,214 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/partitions.json
-2026-05-07 13:21:28,217 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_post at 0x7f84da545a60>
-2026-05-07 13:21:28,217 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_url at 0x7f84da5457a0>
-2026-05-07 13:21:28,221 - MainThread - botocore.endpoint - DEBUG - Setting s3 timeout as (60, 60)
-2026-05-07 13:21:28,224 - MainThread - botocore.utils - DEBUG - Registering S3 region redirector handler
-2026-05-07 13:21:28,224 - MainThread - botocore.utils - DEBUG - Registering S3Express Identity Resolver
-2026-05-07 13:21:28,225 - MainThread - botocore.hooks - DEBUG - Event choose-service-name: calling handler <function handle_service_name_alias at 0x7f84daefb320>
-2026-05-07 13:21:28,227 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_post at 0x7f84da545a60>
-2026-05-07 13:21:28,227 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_url at 0x7f84da5457a0>
-2026-05-07 13:21:28,229 - MainThread - botocore.endpoint - DEBUG - Setting s3 timeout as (60, 60)
-2026-05-07 13:21:28,231 - MainThread - botocore.utils - DEBUG - Registering S3 region redirector handler
-2026-05-07 13:21:28,231 - MainThread - botocore.utils - DEBUG - Registering S3Express Identity Resolver
-2026-05-07 13:21:28,231 - MainThread - botocore.hooks - DEBUG - Event choose-service-name: calling handler <function handle_service_name_alias at 0x7f84daefb320>
-2026-05-07 13:21:28,234 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_post at 0x7f84da545a60>
-2026-05-07 13:21:28,234 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_url at 0x7f84da5457a0>
-2026-05-07 13:21:28,235 - MainThread - botocore.endpoint - DEBUG - Setting s3 timeout as (60, 60)
-2026-05-07 13:21:28,237 - MainThread - botocore.utils - DEBUG - Registering S3 region redirector handler
-2026-05-07 13:21:28,237 - MainThread - botocore.utils - DEBUG - Registering S3Express Identity Resolver
-2026-05-07 13:21:28,238 - MainThread - awscli.customizations.s3.factory - DEBUG - S3 CRT client optimized for system: False
-2026-05-07 13:21:28,238 - MainThread - awscli.customizations.s3.factory - DEBUG - Auto resolved s3 transfer client to: classic
-2026-05-07 13:21:28,238 - MainThread - awscli.customizations.s3.factory - DEBUG - Using a multipart threshold of 8388608 and a part size of 8388608
-2026-05-07 13:21:28,239 - MainThread - s3transfer.utils - DEBUG - Acquiring 0
-2026-05-07 13:21:28,240 - ThreadPoolExecutor-1_0 - s3transfer.tasks - DEBUG - UploadSubmissionTask(transfer_id=0, {'transfer_future': <s3transfer.futures.TransferFuture object at 0x7f84d6be81a0>}) about to wait for the following futures []
-2026-05-07 13:21:28,240 - ThreadPoolExecutor-1_0 - s3transfer.tasks - DEBUG - UploadSubmissionTask(transfer_id=0, {'transfer_future': <s3transfer.futures.TransferFuture object at 0x7f84d6be81a0>}) done waiting for dependent futures
-2026-05-07 13:21:28,240 - ThreadPoolExecutor-1_0 - s3transfer.tasks - DEBUG - Executing task UploadSubmissionTask(transfer_id=0, {'transfer_future': <s3transfer.futures.TransferFuture object at 0x7f84d6be81a0>}) with kwargs {'client': <botocore.client.S3 object at 0x7f84d767f620>, 'config': <s3transfer.manager.TransferConfig object at 0x7f84d6ec1be0>, 'osutil': <s3transfer.utils.OSUtils object at 0x7f84d6cfcd70>, 'request_executor': <s3transfer.futures.BoundedExecutor object at 0x7f84d6cfd400>, 'transfer_future': <s3transfer.futures.TransferFuture object at 0x7f84d6be81a0>}
-2026-05-07 13:21:28,244 - ThreadPoolExecutor-1_0 - s3transfer.futures - DEBUG - Submitting task PutObjectTask(transfer_id=0, {'bucket': 'sfgerk', 'key': 'upload-1778160087-20738.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}) to executor <s3transfer.futures.BoundedExecutor object at 0x7f84d6cfd400> for transfer request: 0.
-2026-05-07 13:21:28,244 - ThreadPoolExecutor-1_0 - s3transfer.utils - DEBUG - Acquiring 0
-2026-05-07 13:21:28,244 - ThreadPoolExecutor-0_0 - s3transfer.tasks - DEBUG - PutObjectTask(transfer_id=0, {'bucket': 'sfgerk', 'key': 'upload-1778160087-20738.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}) about to wait for the following futures []
-2026-05-07 13:21:28,245 - ThreadPoolExecutor-0_0 - s3transfer.tasks - DEBUG - PutObjectTask(transfer_id=0, {'bucket': 'sfgerk', 'key': 'upload-1778160087-20738.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}) done waiting for dependent futures
-2026-05-07 13:21:28,245 - ThreadPoolExecutor-0_0 - s3transfer.tasks - DEBUG - Executing task PutObjectTask(transfer_id=0, {'bucket': 'sfgerk', 'key': 'upload-1778160087-20738.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}) with kwargs {'client': <botocore.client.S3 object at 0x7f84d767f620>, 'fileobj': <s3transfer.utils.ReadFileChunk object at 0x7f84d6be8ec0>, 'bucket': 'sfgerk', 'key': 'upload-1778160087-20738.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}
-2026-05-07 13:21:28,245 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event provide-client-params.s3.PutObject: calling handler <function base64_decode_input_blobs at 0x7f84d7e0e820>
-2026-05-07 13:21:28,245 - ThreadPoolExecutor-1_0 - s3transfer.utils - DEBUG - Releasing acquire 0/None
-2026-05-07 13:21:28,246 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function validate_ascii_metadata at 0x7f84da5ec5c0>
-2026-05-07 13:21:28,246 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function sse_md5 at 0x7f84da5d3690>
-2026-05-07 13:21:28,246 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function convert_body_to_file_like_object at 0x7f84da5ed0c0>
-2026-05-07 13:21:28,246 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function validate_bucket_name at 0x7f84da5d35e0>
-2026-05-07 13:21:28,246 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function remove_bucket_from_url_paths_from_model at 0x7f84da5edd20>
-2026-05-07 13:21:28,246 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <bound method S3RegionRedirectorv2.annotate_request_context of <botocore.utils.S3RegionRedirectorv2 object at 0x7f84d6bdc7d0>>
-2026-05-07 13:21:28,246 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <bound method S3ExpressIdentityResolver.inject_signing_cache_key of <botocore.utils.S3ExpressIdentityResolver object at 0x7f84d6bdc910>>
-2026-05-07 13:21:28,247 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function generate_idempotent_uuid at 0x7f84da5d33d0>
-2026-05-07 13:21:28,247 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function _handle_request_validation_mode_member at 0x7f84da5ee400>
-2026-05-07 13:21:28,247 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-endpoint-resolution.s3: calling handler <function customize_endpoint_resolver_builtins at 0x7f84da5edf30>
-2026-05-07 13:21:28,247 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-endpoint-resolution.s3: calling handler <bound method S3RegionRedirectorv2.redirect_from_cache of <botocore.utils.S3RegionRedirectorv2 object at 0x7f84d6bdc7d0>>
-2026-05-07 13:21:28,247 - ThreadPoolExecutor-0_0 - botocore.regions - DEBUG - Calling endpoint provider with parameters: {'Bucket': 'sfgerk', 'Region': 'us-east-1', 'UseFIPS': False, 'UseDualStack': False, 'Endpoint': 'https://s3.ir-thr-at1.arvanstorage.ir', 'ForcePathStyle': True, 'Accelerate': False, 'UseGlobalEndpoint': False, 'Key': 'upload-1778160087-20738.jpg', 'DisableMultiRegionAccessPoints': False, 'UseArnRegion': True, 'DisableS3ExpressSessionAuth': False}
-2026-05-07 13:21:28,248 - ThreadPoolExecutor-0_0 - botocore.regions - DEBUG - Endpoint provider result: https://s3.ir-thr-at1.arvanstorage.ir/sfgerk
-2026-05-07 13:21:28,248 - ThreadPoolExecutor-0_0 - botocore.regions - DEBUG - Selecting from endpoint provider's list of auth schemes: "sigv4". User selected auth scheme is: "None"
-2026-05-07 13:21:28,249 - ThreadPoolExecutor-0_0 - botocore.regions - DEBUG - Selected auth type "v4" as "v4" with signing context params: {'region': 'us-east-1', 'signing_name': 's3', 'disableDoubleEncoding': True}
-2026-05-07 13:21:28,249 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-call.s3.PutObject: calling handler <function add_expect_header at 0x7f84da5d3a00>
-2026-05-07 13:21:28,249 - ThreadPoolExecutor-0_0 - botocore.handlers - DEBUG - Adding expect 100 continue header to request.
-2026-05-07 13:21:28,249 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-call.s3.PutObject: calling handler <bound method S3ExpressIdentityResolver.apply_signing_cache_key of <botocore.utils.S3ExpressIdentityResolver object at 0x7f84d6bdc910>>
-2026-05-07 13:21:28,249 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-call.s3.PutObject: calling handler <function inject_api_version_header_if_needed at 0x7f84da5ed220>
-2026-05-07 13:21:28,249 - ThreadPoolExecutor-0_0 - botocore.endpoint - DEBUG - Making request for OperationModel(name=PutObject) with params: {'url_path': '/upload-1778160087-20738.jpg', 'query_string': {}, 'method': 'PUT', 'headers': {'x-amz-sdk-checksum-algorithm': 'CRC64NVME', 'Content-Type': 'image/jpeg', 'User-Agent': 'aws-cli/2.34.30 md/awscrt#0.31.2 ua/2.1 os/linux#6.17.0-1010-azure md/arch#x86_64 lang/python#3.14.4 md/pyimpl#CPython m/G,Z,E,N,b cfg/retry-mode#standard md/installer#exe md/distrib#ubuntu.24 md/prompt#off md/command#s3.cp', 'Expect': '100-continue', 'Transfer-Encoding': 'chunked', 'Content-Encoding': 'aws-chunked', 'X-Amz-Trailer': 'x-amz-checksum-crc64nvme', 'X-Amz-Decoded-Content-Length': '15952'}, 'body': <botocore.httpchecksum.AwsChunkedWrapper object at 0x7f84d6be8590>, 'auth_path': '/sfgerk/upload-1778160087-20738.jpg', 'url': 'https://s3.ir-thr-at1.arvanstorage.ir/sfgerk/upload-1778160087-20738.jpg', 'context': {'client_region': 'us-east-1', 'client_config': <botocore.config.Config object at 0x7f84d6b26850>, 'has_streaming_input': True, 'auth_type': 'v4', 'unsigned_payload': None, 'auth_options': ['aws.auth#sigv4'], 's3_redirect': {'redirected': False, 'bucket': 'sfgerk', 'params': {'Bucket': 'sfgerk', 'Key': 'upload-1778160087-20738.jpg', 'Body': <s3transfer.utils.ReadFileChunk object at 0x7f84d6be8ec0>, 'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}, 'S3Express': {'bucket_name': 'sfgerk'}, 'signing': {'region': 'us-east-1', 'signing_name': 's3', 'disableDoubleEncoding': True}, 'endpoint_properties': {'authSchemes': [{'disableDoubleEncoding': True, 'name': 'sigv4', 'signingName': 's3', 'signingRegion': 'us-east-1'}]}, 'checksum': {'request_algorithm': {'algorithm': 'crc64nvme', 'in': 'trailer', 'name': 'x-amz-checksum-crc64nvme'}}}}
-2026-05-07 13:21:28,250 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event request-created.s3.PutObject: calling handler <function signal_not_transferring at 0x7f84d7cebab0>
-2026-05-07 13:21:28,250 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event request-created.s3.PutObject: calling handler <bound method RequestSigner.handler of <botocore.signers.RequestSigner object at 0x7f84d6b26710>>
-2026-05-07 13:21:28,250 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event choose-signer.s3.PutObject: calling handler <function set_operation_specific_signer at 0x7f84da5d3110>
-2026-05-07 13:21:28,250 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-sign.s3.PutObject: calling handler <function remove_arn_from_signing_path at 0x7f84da5ede80>
-2026-05-07 13:21:28,250 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-sign.s3.PutObject: calling handler <function _set_extra_headers_for_unsigned_request at 0x7f84da5ee6c0>
-2026-05-07 13:21:28,250 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-sign.s3.PutObject: calling handler <bound method S3ExpressIdentityResolver.resolve_s3express_identity of <botocore.utils.S3ExpressIdentityResolver object at 0x7f84d6bdc910>>
-2026-05-07 13:21:28,250 - ThreadPoolExecutor-0_0 - botocore.auth - DEBUG - Calculating signature using v4 auth.
-2026-05-07 13:21:28,250 - ThreadPoolExecutor-0_0 - botocore.auth - DEBUG - CanonicalRequest:
+2026-05-07 13:33:44,979 - MainThread - awscli.clidriver - DEBUG - CLI version: aws-cli/2.34.30 Python/3.14.4 Linux/6.17.0-1010-azure exe/x86_64.ubuntu.24
+2026-05-07 13:33:44,979 - MainThread - awscli.clidriver - DEBUG - Arguments entered to CLI: ['s3', 'cp', 'sample.jpg', 's3://sfgerk/upload-1778160824-9573.jpg', '--profile', 'arvan', '--endpoint-url', 'https://s3.ir-thr-at1.arvanstorage.ir', '--no-verify-ssl', '--debug']
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_s3 at 0x7fb59b77e1f0>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_ddb at 0x7fb59ba77740>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.configure.configure.ConfigureCommand'>>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function change_name at 0x7fb59bbc0040>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function change_name at 0x7fb59bbc3ed0>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_history_commands at 0x7fb59ba1d0c0>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.devcommands.CLIDevCommand'>>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.login.login.LoginCommand'>>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method BasicCommand.add_command of <class 'awscli.customizations.login.logout.LogoutCommand'>>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <function add_waiters at 0x7fb59b795f30>
+2026-05-07 13:33:44,987 - MainThread - botocore.hooks - DEBUG - Event building-command-table.main: calling handler <bound method AliasSubCommandInjector.on_building_command_table of <awscli.alias.AliasSubCommandInjector object at 0x7fb59b927e00>>
+2026-05-07 13:33:44,987 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/data/cli.json
+2026-05-07 13:33:44,988 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_types at 0x7fb59b9f0a90>
+2026-05-07 13:33:44,989 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function no_sign_request at 0x7fb59b9f0e00>
+2026-05-07 13:33:44,989 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_verify_ssl at 0x7fb59b9f0d50>
+2026-05-07 13:33:44,989 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_cli_read_timeout at 0x7fb59b9f0f60>
+2026-05-07 13:33:44,989 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <function resolve_cli_connect_timeout at 0x7fb59b9f0eb0>
+2026-05-07 13:33:44,989 - MainThread - botocore.hooks - DEBUG - Event top-level-args-parsed: calling handler <built-in method update of dict object at 0x7fb59b82ebc0>
+2026-05-07 13:33:44,989 - MainThread - botocore.session - DEBUG - Setting config variable for profile to 'arvan'
+2026-05-07 13:33:44,989 - MainThread - awscli.clidriver - DEBUG - CLI version: aws-cli/2.34.30 Python/3.14.4 Linux/6.17.0-1010-azure exe/x86_64.ubuntu.24
+2026-05-07 13:33:44,989 - MainThread - awscli.clidriver - DEBUG - Arguments entered to CLI: ['s3', 'cp', 'sample.jpg', 's3://sfgerk/upload-1778160824-9573.jpg', '--profile', 'arvan', '--endpoint-url', 'https://s3.ir-thr-at1.arvanstorage.ir', '--no-verify-ssl', '--debug']
+2026-05-07 13:33:44,989 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function add_timestamp_parser at 0x7fb59b7954e0>
+2026-05-07 13:33:44,989 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function register_uri_param_handler at 0x7fb59d9c8460>
+2026-05-07 13:33:44,989 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function add_binary_formatter at 0x7fb59be0a4b0>
+2026-05-07 13:33:44,989 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function no_pager_handler at 0x7fb59bdbc670>
+2026-05-07 13:33:44,990 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function inject_assume_role_provider_cache at 0x7fb59be09f30>
+2026-05-07 13:33:44,991 - MainThread - botocore.utils - DEBUG - IMDS ENDPOINT: http://169.254.169.254/
+2026-05-07 13:33:44,992 - MainThread - botocore.credentials - DEBUG - Skipping environment variable credential check because profile name was explicitly set.
+2026-05-07 13:33:44,992 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function attach_history_handler at 0x7fb59b9f1380>
+2026-05-07 13:33:44,992 - MainThread - botocore.hooks - DEBUG - Event session-initialized: calling handler <function inject_json_file_cache at 0x7fb59bc664b0>
+2026-05-07 13:33:44,992 - MainThread - botocore.hooks - DEBUG - Event building-command-table.s3: calling handler <function add_waiters at 0x7fb59b795f30>
+2026-05-07 13:33:44,992 - MainThread - botocore.hooks - DEBUG - Event building-command-table.s3: calling handler <bound method AliasSubCommandInjector.on_building_command_table of <awscli.alias.AliasSubCommandInjector object at 0x7fb59b927e00>>
+2026-05-07 13:33:44,992 - MainThread - botocore.hooks - DEBUG - Event building-command-table.s3_cp: calling handler <function add_waiters at 0x7fb59b795f30>
+2026-05-07 13:33:44,992 - MainThread - botocore.hooks - DEBUG - Event building-command-table.s3_cp: calling handler <bound method AliasSubCommandInjector.on_building_command_table of <awscli.alias.AliasSubCommandInjector object at 0x7fb59b927e00>>
+2026-05-07 13:33:44,993 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.paths: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,993 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.dryrun: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.quiet: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.anonymous: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.acl: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.follow-symlinks: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.anonymous: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-c: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-c-key: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-kms-key-id: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-c-copy-source: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.sse-c-copy-source-key: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.storage-class: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.grants: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.website-redirect: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.content-type: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,994 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.cache-control: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.content-disposition: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.content-encoding: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.content-language: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.expires: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.source-region: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.only-show-errors: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.anonymous: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.progress-frequency: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.progress-multiline: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.page-size: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.ignore-glacier-warnings: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.force-glacier-transfer: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.request-payer: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.checksum-mode: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.checksum-algorithm: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.metadata: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.copy-props: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,995 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,996 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.metadata-directive: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,996 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.expected-size: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,996 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.anonymous: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,996 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.case-conflict: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,996 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,996 - MainThread - botocore.hooks - DEBUG - Event load-cli-arg.custom.cp.no-overwrite: calling handler <awscli.paramfile.URIArgumentHandler object at 0x7fb59b838980>
+2026-05-07 13:33:44,996 - MainThread - botocore.hooks - DEBUG - Event process-cli-arg.custom.cp: calling handler <awscli.argprocess.ParamShorthandParser object at 0x7fb59b925a90>
+2026-05-07 13:33:44,996 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role
+2026-05-07 13:33:44,996 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: assume-role-with-web-identity
+2026-05-07 13:33:44,996 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: sso
+2026-05-07 13:33:44,996 - MainThread - botocore.credentials - DEBUG - Looking for credentials via: shared-credentials-file
+2026-05-07 13:33:44,997 - MainThread - botocore.credentials - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2026-05-07 13:33:45,000 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/endpoints.json
+2026-05-07 13:33:45,017 - MainThread - botocore.hooks - DEBUG - Event choose-service-name: calling handler <function handle_service_name_alias at 0x7fb59eef7320>
+2026-05-07 13:33:45,029 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/s3/2006-03-01/service-2.json
+2026-05-07 13:33:45,036 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/s3/2006-03-01/service-2.sdk-extras.json
+2026-05-07 13:33:45,046 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/s3/2006-03-01/endpoint-rule-set-1.json
+2026-05-07 13:33:45,050 - MainThread - botocore.loaders - DEBUG - Loading JSON file: /usr/local/aws-cli/v2/2.34.30/dist/awscli/botocore/data/partitions.json
+2026-05-07 13:33:45,051 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_post at 0x7fb59e53da60>
+2026-05-07 13:33:45,051 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_url at 0x7fb59e53d7a0>
+2026-05-07 13:33:45,053 - MainThread - botocore.endpoint - DEBUG - Setting s3 timeout as (60, 60)
+2026-05-07 13:33:45,054 - MainThread - botocore.utils - DEBUG - Registering S3 region redirector handler
+2026-05-07 13:33:45,054 - MainThread - botocore.utils - DEBUG - Registering S3Express Identity Resolver
+2026-05-07 13:33:45,054 - MainThread - botocore.hooks - DEBUG - Event choose-service-name: calling handler <function handle_service_name_alias at 0x7fb59eef7320>
+2026-05-07 13:33:45,055 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_post at 0x7fb59e53da60>
+2026-05-07 13:33:45,055 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_url at 0x7fb59e53d7a0>
+2026-05-07 13:33:45,056 - MainThread - botocore.endpoint - DEBUG - Setting s3 timeout as (60, 60)
+2026-05-07 13:33:45,057 - MainThread - botocore.utils - DEBUG - Registering S3 region redirector handler
+2026-05-07 13:33:45,058 - MainThread - botocore.utils - DEBUG - Registering S3Express Identity Resolver
+2026-05-07 13:33:45,058 - MainThread - botocore.hooks - DEBUG - Event choose-service-name: calling handler <function handle_service_name_alias at 0x7fb59eef7320>
+2026-05-07 13:33:45,059 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_post at 0x7fb59e53da60>
+2026-05-07 13:33:45,059 - MainThread - botocore.hooks - DEBUG - Event creating-client-class.s3: calling handler <function add_generate_presigned_url at 0x7fb59e53d7a0>
+2026-05-07 13:33:45,060 - MainThread - botocore.endpoint - DEBUG - Setting s3 timeout as (60, 60)
+2026-05-07 13:33:45,061 - MainThread - botocore.utils - DEBUG - Registering S3 region redirector handler
+2026-05-07 13:33:45,061 - MainThread - botocore.utils - DEBUG - Registering S3Express Identity Resolver
+2026-05-07 13:33:45,062 - MainThread - awscli.customizations.s3.factory - DEBUG - S3 CRT client optimized for system: False
+2026-05-07 13:33:45,062 - MainThread - awscli.customizations.s3.factory - DEBUG - Auto resolved s3 transfer client to: classic
+2026-05-07 13:33:45,062 - MainThread - awscli.customizations.s3.factory - DEBUG - Using a multipart threshold of 8388608 and a part size of 8388608
+2026-05-07 13:33:45,063 - MainThread - s3transfer.utils - DEBUG - Acquiring 0
+2026-05-07 13:33:45,063 - ThreadPoolExecutor-1_0 - s3transfer.tasks - DEBUG - UploadSubmissionTask(transfer_id=0, {'transfer_future': <s3transfer.futures.TransferFuture object at 0x7fb59abe81a0>}) about to wait for the following futures []
+2026-05-07 13:33:45,063 - ThreadPoolExecutor-1_0 - s3transfer.tasks - DEBUG - UploadSubmissionTask(transfer_id=0, {'transfer_future': <s3transfer.futures.TransferFuture object at 0x7fb59abe81a0>}) done waiting for dependent futures
+2026-05-07 13:33:45,063 - ThreadPoolExecutor-1_0 - s3transfer.tasks - DEBUG - Executing task UploadSubmissionTask(transfer_id=0, {'transfer_future': <s3transfer.futures.TransferFuture object at 0x7fb59abe81a0>}) with kwargs {'client': <botocore.client.S3 object at 0x7fb59b67b620>, 'config': <s3transfer.manager.TransferConfig object at 0x7fb59b521be0>, 'osutil': <s3transfer.utils.OSUtils object at 0x7fb59acf8d70>, 'request_executor': <s3transfer.futures.BoundedExecutor object at 0x7fb59acf9400>, 'transfer_future': <s3transfer.futures.TransferFuture object at 0x7fb59abe81a0>}
+2026-05-07 13:33:45,123 - ThreadPoolExecutor-1_0 - s3transfer.futures - DEBUG - Submitting task PutObjectTask(transfer_id=0, {'bucket': 'sfgerk', 'key': 'upload-1778160824-9573.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}) to executor <s3transfer.futures.BoundedExecutor object at 0x7fb59acf9400> for transfer request: 0.
+2026-05-07 13:33:45,123 - ThreadPoolExecutor-1_0 - s3transfer.utils - DEBUG - Acquiring 0
+2026-05-07 13:33:45,123 - ThreadPoolExecutor-0_0 - s3transfer.tasks - DEBUG - PutObjectTask(transfer_id=0, {'bucket': 'sfgerk', 'key': 'upload-1778160824-9573.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}) about to wait for the following futures []
+2026-05-07 13:33:45,123 - ThreadPoolExecutor-0_0 - s3transfer.tasks - DEBUG - PutObjectTask(transfer_id=0, {'bucket': 'sfgerk', 'key': 'upload-1778160824-9573.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}) done waiting for dependent futures
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - s3transfer.tasks - DEBUG - Executing task PutObjectTask(transfer_id=0, {'bucket': 'sfgerk', 'key': 'upload-1778160824-9573.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}) with kwargs {'client': <botocore.client.S3 object at 0x7fb59b67b620>, 'fileobj': <s3transfer.utils.ReadFileChunk object at 0x7fb59abe8ec0>, 'bucket': 'sfgerk', 'key': 'upload-1778160824-9573.jpg', 'extra_args': {'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event provide-client-params.s3.PutObject: calling handler <function base64_decode_input_blobs at 0x7fb59be0a820>
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function validate_ascii_metadata at 0x7fb59e5e85c0>
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-1_0 - s3transfer.utils - DEBUG - Releasing acquire 0/None
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function sse_md5 at 0x7fb59e5cf690>
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function convert_body_to_file_like_object at 0x7fb59e5e90c0>
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function validate_bucket_name at 0x7fb59e5cf5e0>
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function remove_bucket_from_url_paths_from_model at 0x7fb59e5e9d20>
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <bound method S3RegionRedirectorv2.annotate_request_context of <botocore.utils.S3RegionRedirectorv2 object at 0x7fb59abd87d0>>
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <bound method S3ExpressIdentityResolver.inject_signing_cache_key of <botocore.utils.S3ExpressIdentityResolver object at 0x7fb59abd8910>>
+2026-05-07 13:33:45,124 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function generate_idempotent_uuid at 0x7fb59e5cf3d0>
+2026-05-07 13:33:45,125 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parameter-build.s3.PutObject: calling handler <function _handle_request_validation_mode_member at 0x7fb59e5ea400>
+2026-05-07 13:33:45,125 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-endpoint-resolution.s3: calling handler <function customize_endpoint_resolver_builtins at 0x7fb59e5e9f30>
+2026-05-07 13:33:45,125 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-endpoint-resolution.s3: calling handler <bound method S3RegionRedirectorv2.redirect_from_cache of <botocore.utils.S3RegionRedirectorv2 object at 0x7fb59abd87d0>>
+2026-05-07 13:33:45,125 - ThreadPoolExecutor-0_0 - botocore.regions - DEBUG - Calling endpoint provider with parameters: {'Bucket': 'sfgerk', 'Region': 'us-east-1', 'UseFIPS': False, 'UseDualStack': False, 'Endpoint': 'https://s3.ir-thr-at1.arvanstorage.ir', 'ForcePathStyle': True, 'Accelerate': False, 'UseGlobalEndpoint': False, 'Key': 'upload-1778160824-9573.jpg', 'DisableMultiRegionAccessPoints': False, 'UseArnRegion': True, 'DisableS3ExpressSessionAuth': False}
+2026-05-07 13:33:45,126 - ThreadPoolExecutor-0_0 - botocore.regions - DEBUG - Endpoint provider result: https://s3.ir-thr-at1.arvanstorage.ir/sfgerk
+2026-05-07 13:33:45,126 - ThreadPoolExecutor-0_0 - botocore.regions - DEBUG - Selecting from endpoint provider's list of auth schemes: "sigv4". User selected auth scheme is: "None"
+2026-05-07 13:33:45,126 - ThreadPoolExecutor-0_0 - botocore.regions - DEBUG - Selected auth type "v4" as "v4" with signing context params: {'region': 'us-east-1', 'signing_name': 's3', 'disableDoubleEncoding': True}
+2026-05-07 13:33:45,126 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-call.s3.PutObject: calling handler <function add_expect_header at 0x7fb59e5cfa00>
+2026-05-07 13:33:45,126 - ThreadPoolExecutor-0_0 - botocore.handlers - DEBUG - Adding expect 100 continue header to request.
+2026-05-07 13:33:45,126 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-call.s3.PutObject: calling handler <bound method S3ExpressIdentityResolver.apply_signing_cache_key of <botocore.utils.S3ExpressIdentityResolver object at 0x7fb59abd8910>>
+2026-05-07 13:33:45,126 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-call.s3.PutObject: calling handler <function inject_api_version_header_if_needed at 0x7fb59e5e9220>
+2026-05-07 13:33:45,126 - ThreadPoolExecutor-0_0 - botocore.endpoint - DEBUG - Making request for OperationModel(name=PutObject) with params: {'url_path': '/upload-1778160824-9573.jpg', 'query_string': {}, 'method': 'PUT', 'headers': {'x-amz-sdk-checksum-algorithm': 'CRC64NVME', 'Content-Type': 'image/jpeg', 'User-Agent': 'aws-cli/2.34.30 md/awscrt#0.31.2 ua/2.1 os/linux#6.17.0-1010-azure md/arch#x86_64 lang/python#3.14.4 md/pyimpl#CPython m/G,Z,E,N,b cfg/retry-mode#standard md/installer#exe md/distrib#ubuntu.24 md/prompt#off md/command#s3.cp', 'Expect': '100-continue', 'Transfer-Encoding': 'chunked', 'Content-Encoding': 'aws-chunked', 'X-Amz-Trailer': 'x-amz-checksum-crc64nvme', 'X-Amz-Decoded-Content-Length': '60688'}, 'body': <botocore.httpchecksum.AwsChunkedWrapper object at 0x7fb59acfb230>, 'auth_path': '/sfgerk/upload-1778160824-9573.jpg', 'url': 'https://s3.ir-thr-at1.arvanstorage.ir/sfgerk/upload-1778160824-9573.jpg', 'context': {'client_region': 'us-east-1', 'client_config': <botocore.config.Config object at 0x7fb59ab22850>, 'has_streaming_input': True, 'auth_type': 'v4', 'unsigned_payload': None, 'auth_options': ['aws.auth#sigv4'], 's3_redirect': {'redirected': False, 'bucket': 'sfgerk', 'params': {'Bucket': 'sfgerk', 'Key': 'upload-1778160824-9573.jpg', 'Body': <s3transfer.utils.ReadFileChunk object at 0x7fb59abe8ec0>, 'ChecksumAlgorithm': 'CRC64NVME', 'ContentType': 'image/jpeg'}}, 'S3Express': {'bucket_name': 'sfgerk'}, 'signing': {'region': 'us-east-1', 'signing_name': 's3', 'disableDoubleEncoding': True}, 'endpoint_properties': {'authSchemes': [{'disableDoubleEncoding': True, 'name': 'sigv4', 'signingName': 's3', 'signingRegion': 'us-east-1'}]}, 'checksum': {'request_algorithm': {'algorithm': 'crc64nvme', 'in': 'trailer', 'name': 'x-amz-checksum-crc64nvme'}}}}
+2026-05-07 13:33:45,126 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event request-created.s3.PutObject: calling handler <function signal_not_transferring at 0x7fb59bce3ab0>
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event request-created.s3.PutObject: calling handler <bound method RequestSigner.handler of <botocore.signers.RequestSigner object at 0x7fb59ab22710>>
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event choose-signer.s3.PutObject: calling handler <function set_operation_specific_signer at 0x7fb59e5cf110>
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-sign.s3.PutObject: calling handler <function remove_arn_from_signing_path at 0x7fb59e5e9e80>
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-sign.s3.PutObject: calling handler <function _set_extra_headers_for_unsigned_request at 0x7fb59e5ea6c0>
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-sign.s3.PutObject: calling handler <bound method S3ExpressIdentityResolver.resolve_s3express_identity of <botocore.utils.S3ExpressIdentityResolver object at 0x7fb59abd8910>>
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.auth - DEBUG - Calculating signature using v4 auth.
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.auth - DEBUG - CanonicalRequest:
 PUT
-/sfgerk/upload-1778160087-20738.jpg
+/sfgerk/upload-1778160824-9573.jpg
 
 content-encoding:aws-chunked
 content-type:image/jpeg
 host:s3.ir-thr-at1.arvanstorage.ir
 x-amz-content-sha256:STREAMING-UNSIGNED-PAYLOAD-TRAILER
-x-amz-date:20260507T132128Z
-x-amz-decoded-content-length:15952
+x-amz-date:20260507T133345Z
+x-amz-decoded-content-length:60688
 x-amz-sdk-checksum-algorithm:CRC64NVME
 x-amz-trailer:x-amz-checksum-crc64nvme
 
 content-encoding;content-type;host;x-amz-content-sha256;x-amz-date;x-amz-decoded-content-length;x-amz-sdk-checksum-algorithm;x-amz-trailer
 STREAMING-UNSIGNED-PAYLOAD-TRAILER
-2026-05-07 13:21:28,251 - ThreadPoolExecutor-0_0 - botocore.auth - DEBUG - StringToSign:
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.auth - DEBUG - StringToSign:
 AWS4-HMAC-SHA256
-20260507T132128Z
+20260507T133345Z
 20260507/us-east-1/s3/aws4_request
-91c5bee531c0517ab913cb0191684e1064ff20bc3684874ecb24408fc668ae60
-2026-05-07 13:21:28,251 - ThreadPoolExecutor-0_0 - botocore.auth - DEBUG - Signature:
-072e8bb7212abda56906c0bc4c01e303a993bd9fcc1ce0d880541fdc8a901e25
-2026-05-07 13:21:28,251 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event request-created.s3.PutObject: calling handler <bound method UserAgentString.rebuild_and_replace_user_agent_handler of <botocore.useragent.UserAgentString object at 0x7f84d6b90270>>
-2026-05-07 13:21:28,251 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event request-created.s3.PutObject: calling handler <function signal_transferring at 0x7f84d7cebb60>
-2026-05-07 13:21:28,251 - ThreadPoolExecutor-0_0 - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest stream_output=False, method=PUT, url=https://s3.ir-thr-at1.arvanstorage.ir/sfgerk/upload-1778160087-20738.jpg, headers={'x-amz-sdk-checksum-algorithm': b'CRC64NVME', 'Content-Type': b'image/jpeg', 'User-Agent': b'aws-cli/2.34.30 md/awscrt#0.31.2 ua/2.1 os/linux#6.17.0-1010-azure md/arch#x86_64 lang/python#3.14.4 md/pyimpl#CPython m/G,W,Z,E,N,b cfg/retry-mode#standard md/installer#exe md/distrib#ubuntu.24 md/prompt#off md/command#s3.cp', 'Expect': b'100-continue', 'Transfer-Encoding': b'chunked', 'Content-Encoding': b'aws-chunked', 'X-Amz-Trailer': b'x-amz-checksum-crc64nvme', 'X-Amz-Decoded-Content-Length': b'15952', 'X-Amz-Date': b'20260507T132128Z', 'X-Amz-Content-SHA256': b'STREAMING-UNSIGNED-PAYLOAD-TRAILER', 'Authorization': b'AWS4-HMAC-SHA256 Credential=0283fe7f-aa44-4041-8859-c0ee33b2d686/20260507/us-east-1/s3/aws4_request, SignedHeaders=content-encoding;content-type;host;x-amz-content-sha256;x-amz-date;x-amz-decoded-content-length;x-amz-sdk-checksum-algorithm;x-amz-trailer, Signature=072e8bb7212abda56906c0bc4c01e303a993bd9fcc1ce0d880541fdc8a901e25'}>
-2026-05-07 13:21:28,252 - ThreadPoolExecutor-0_0 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): s3.ir-thr-at1.arvanstorage.ir:443
+298fc7bd54b878ed08ec1df47b589b4f2fcc90955cf2570e864bff36467b221b
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.auth - DEBUG - Signature:
+500ed53532c7a2b95d26e8bb5632f1eb6ba2f46bdc944a78a89f0f20062e9e7c
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event request-created.s3.PutObject: calling handler <bound method UserAgentString.rebuild_and_replace_user_agent_handler of <botocore.useragent.UserAgentString object at 0x7fb59ab8c270>>
+2026-05-07 13:33:45,127 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event request-created.s3.PutObject: calling handler <function signal_transferring at 0x7fb59bce3b60>
+2026-05-07 13:33:45,128 - ThreadPoolExecutor-0_0 - botocore.endpoint - DEBUG - Sending http request: <AWSPreparedRequest stream_output=False, method=PUT, url=https://s3.ir-thr-at1.arvanstorage.ir/sfgerk/upload-1778160824-9573.jpg, headers={'x-amz-sdk-checksum-algorithm': b'CRC64NVME', 'Content-Type': b'image/jpeg', 'User-Agent': b'aws-cli/2.34.30 md/awscrt#0.31.2 ua/2.1 os/linux#6.17.0-1010-azure md/arch#x86_64 lang/python#3.14.4 md/pyimpl#CPython m/G,W,Z,E,N,b cfg/retry-mode#standard md/installer#exe md/distrib#ubuntu.24 md/prompt#off md/command#s3.cp', 'Expect': b'100-continue', 'Transfer-Encoding': b'chunked', 'Content-Encoding': b'aws-chunked', 'X-Amz-Trailer': b'x-amz-checksum-crc64nvme', 'X-Amz-Decoded-Content-Length': b'60688', 'X-Amz-Date': b'20260507T133345Z', 'X-Amz-Content-SHA256': b'STREAMING-UNSIGNED-PAYLOAD-TRAILER', 'Authorization': b'AWS4-HMAC-SHA256 Credential=0283fe7f-aa44-4041-8859-c0ee33b2d686/20260507/us-east-1/s3/aws4_request, SignedHeaders=content-encoding;content-type;host;x-amz-content-sha256;x-amz-date;x-amz-decoded-content-length;x-amz-sdk-checksum-algorithm;x-amz-trailer, Signature=500ed53532c7a2b95d26e8bb5632f1eb6ba2f46bdc944a78a89f0f20062e9e7c'}>
+2026-05-07 13:33:45,128 - ThreadPoolExecutor-0_0 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): s3.ir-thr-at1.arvanstorage.ir:443
 urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 's3.ir-thr-at1.arvanstorage.ir'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
-2026-05-07 13:21:33,254 - ThreadPoolExecutor-0_0 - botocore.awsrequest - DEBUG - Waiting for 100 Continue response.
-2026-05-07 13:21:34,256 - ThreadPoolExecutor-0_0 - botocore.awsrequest - DEBUG - No response seen from server, continuing to send the response body.
-2026-05-07 13:21:35,403 - ThreadPoolExecutor-0_0 - urllib3.connectionpool - DEBUG - https://s3.ir-thr-at1.arvanstorage.ir:443 "PUT /sfgerk/upload-1778160087-20738.jpg HTTP/1.1" 200 0
-2026-05-07 13:21:35,403 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parse.s3.PutObject: calling handler <function _handle_200_error at 0x7f84da5ee1f0>
-2026-05-07 13:21:35,403 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parse.s3.PutObject: calling handler <function handle_expires_header at 0x7f84da5edfe0>
-2026-05-07 13:21:35,404 - ThreadPoolExecutor-0_0 - botocore.parsers - DEBUG - Response headers: {'Date': 'Thu, 07 May 2026 13:21:35 GMT', 'Content-Length': '0', 'Connection': 'keep-alive', 'Keep-Alive': 'timeout=65', 'etag': '"4c0d87d71d0c2e14d4c16fb103a6664f"', 'x-amz-request-id': 'tx000002675db576d4fd88a-0069fc91dd-b47ea093-ir-thr-at1', 'x-robots-tag': 'noindex, nofollow', 'X-XSS-Protection': '1; mode=block', 'Server': 'ArvanCloud', 'Server-Timing': 'total;dur=1848', 'X-Request-ID': 'b626ba38a0cd99ad3f453b286cb7f580', 'X-SID': '6980', 'Accept-Ranges': 'bytes'}
-2026-05-07 13:21:35,404 - ThreadPoolExecutor-0_0 - botocore.parsers - DEBUG - Response body:
+2026-05-07 13:33:46,692 - ThreadPoolExecutor-0_0 - botocore.awsrequest - DEBUG - Waiting for 100 Continue response.
+2026-05-07 13:33:46,793 - ThreadPoolExecutor-0_0 - botocore.awsrequest - DEBUG - 100 Continue response seen, now sending request body.
+2026-05-07 13:33:47,584 - ThreadPoolExecutor-0_0 - urllib3.connectionpool - DEBUG - https://s3.ir-thr-at1.arvanstorage.ir:443 "PUT /sfgerk/upload-1778160824-9573.jpg HTTP/1.1" 200 0
+2026-05-07 13:33:47,584 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parse.s3.PutObject: calling handler <function _handle_200_error at 0x7fb59e5ea1f0>
+2026-05-07 13:33:47,584 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event before-parse.s3.PutObject: calling handler <function handle_expires_header at 0x7fb59e5e9fe0>
+2026-05-07 13:33:47,584 - ThreadPoolExecutor-0_0 - botocore.parsers - DEBUG - Response headers: {'Date': 'Thu, 07 May 2026 13:33:47 GMT', 'Content-Length': '0', 'Connection': 'keep-alive', 'Keep-Alive': 'timeout=65', 'etag': '"ac27f6f62b0ca4b2b2888153984640b6"', 'x-amz-request-id': 'tx00000c424d2e10a9171b8-0069fc94ba-b474c28a-ir-thr-at1', 'x-robots-tag': 'noindex, nofollow', 'X-XSS-Protection': '1; mode=block', 'Server': 'ArvanCloud', 'Server-Timing': 'total;dur=790', 'X-Request-ID': '6f5aa3e62332c8871471d81ba0f6ad25', 'X-SID': '6980', 'Accept-Ranges': 'bytes'}
+2026-05-07 13:33:47,584 - ThreadPoolExecutor-0_0 - botocore.parsers - DEBUG - Response body:
 b''
-2026-05-07 13:21:35,404 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event needs-retry.s3.PutObject: calling handler <function _update_status_code at 0x7f84da5ee350>
-2026-05-07 13:21:35,404 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event needs-retry.s3.PutObject: calling handler <bound method RetryHandler.needs_retry of <botocore.retries.standard.RetryHandler object at 0x7f84d6bdc690>>
-2026-05-07 13:21:35,404 - ThreadPoolExecutor-0_0 - botocore.retries.standard - DEBUG - Not retrying request.
-2026-05-07 13:21:35,404 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event needs-retry.s3.PutObject: calling handler <bound method S3RegionRedirectorv2.redirect_from_error of <botocore.utils.S3RegionRedirectorv2 object at 0x7f84d6bdc7d0>>
-2026-05-07 13:21:35,404 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event after-call.s3.PutObject: calling handler <function enhance_error_msg at 0x7f84d77826c0>
-2026-05-07 13:21:35,404 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event after-call.s3.PutObject: calling handler <bound method RetryQuotaChecker.release_retry_quota of <botocore.retries.standard.RetryQuotaChecker object at 0x7f84d6b27750>>
-Completed 15.6 KiB/15.6 KiB (2.2 KiB/s) with 1 file(s) remaining2026-05-07 13:21:35,405 - ThreadPoolExecutor-0_0 - s3transfer.utils - DEBUG - Releasing acquire 0/None
-upload: ./sample.jpg to s3://sfgerk/upload-1778160087-20738.jpg 
-2026-05-07 13:21:35,405 - Thread-1 - awscli.customizations.s3.results - DEBUG - Shutdown request received in result processing thread, shutting down result thread.
+2026-05-07 13:33:47,585 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event needs-retry.s3.PutObject: calling handler <function _update_status_code at 0x7fb59e5ea350>
+2026-05-07 13:33:47,585 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event needs-retry.s3.PutObject: calling handler <bound method RetryHandler.needs_retry of <botocore.retries.standard.RetryHandler object at 0x7fb59abd8690>>
+2026-05-07 13:33:47,585 - ThreadPoolExecutor-0_0 - botocore.retries.standard - DEBUG - Not retrying request.
+2026-05-07 13:33:47,585 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event needs-retry.s3.PutObject: calling handler <bound method S3RegionRedirectorv2.redirect_from_error of <botocore.utils.S3RegionRedirectorv2 object at 0x7fb59abd87d0>>
+2026-05-07 13:33:47,585 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event after-call.s3.PutObject: calling handler <function enhance_error_msg at 0x7fb59b77e6c0>
+2026-05-07 13:33:47,585 - ThreadPoolExecutor-0_0 - botocore.hooks - DEBUG - Event after-call.s3.PutObject: calling handler <bound method RetryQuotaChecker.release_retry_quota of <botocore.retries.standard.RetryQuotaChecker object at 0x7fb59ab23750>>
+Completed 59.3 KiB/59.3 KiB (23.5 KiB/s) with 1 file(s) remaining2026-05-07 13:33:47,585 - ThreadPoolExecutor-0_0 - s3transfer.utils - DEBUG - Releasing acquire 0/None
+upload: ./sample.jpg to s3://sfgerk/upload-1778160824-9573.jpg   
+2026-05-07 13:33:47,586 - Thread-1 - awscli.customizations.s3.results - DEBUG - Shutdown request received in result processing thread, shutting down result thread.
 
 --- Curl Log ---
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Host picsum.photos:443 was resolved.
-* IPv6: 2606:4700:20::681a:41e, 2606:4700:20::ac43:4aa3, 2606:4700:20::681a:51e
-* IPv4: 104.26.4.30, 172.67.74.163, 104.26.5.30
-*   Trying 104.26.4.30:443...
-* Connected to picsum.photos (104.26.4.30) port 443
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Host picsum.photos:443 was resolved.
+* IPv6: 2606:4700:20::ac43:4aa3, 2606:4700:20::681a:41e, 2606:4700:20::681a:51e
+* IPv4: 104.26.5.30, 104.26.4.30, 172.67.74.163
+*   Trying 104.26.5.30:443...
+* Connected to picsum.photos (104.26.5.30) port 443
 * ALPN: curl offers h2,http/1.1
 } [5 bytes data]
 * TLSv1.3 (OUT), TLS handshake, Client hello (1):
@@ -233,7 +233,7 @@ upload: ./sample.jpg to s3://sfgerk/upload-1778160087-20738.jpg
 * TLSv1.3 (IN), TLS handshake, Certificate (11):
 { [2532 bytes data]
 * TLSv1.3 (IN), TLS handshake, CERT verify (15):
-{ [80 bytes data]
+{ [79 bytes data]
 * TLSv1.3 (IN), TLS handshake, Finished (20):
 { [52 bytes data]
 * TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
@@ -275,9 +275,9 @@ upload: ./sample.jpg to s3://sfgerk/upload-1778160087-20738.jpg
 * old SSL session ID is stale, removing
 { [5 bytes data]
 < HTTP/2 302 
-< date: Thu, 07 May 2026 13:21:23 GMT
+< date: Thu, 07 May 2026 13:33:41 GMT
 < content-length: 0
-< location: https://fastly.picsum.photos/id/460/600/400.jpg?hmac=txE53BmGsSPaNUp4ZhIQmbewaKJFtGHlb5kPaS96s8c
+< location: https://fastly.picsum.photos/id/1043/600/400.jpg?hmac=rKJ3oNfUiQwN0IYb8WLuldI1d5yxsuYCXHzWfJ8SwH4
 < server: cloudflare
 < cache-control: private, no-cache, no-store, must-revalidate
 < vary: Origin
@@ -285,18 +285,18 @@ upload: ./sample.jpg to s3://sfgerk/upload-1778160087-20738.jpg
 < cf-cache-status: BYPASS
 < strict-transport-security: max-age=15552000
 < x-content-type-options: nosniff
-< report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=nki3yXcTzlkOEXXUrkbsmXJgM%2BtNmcZzUKUQZzj3%2FsVBtAt6%2F5svtktzXnZ%2BYSvuP%2B8oyvQrR8ojMd3LWu3sQ2cWZmUvO47%2FX37dXaCpgX3%2FT7OHvG7C4BzesNHDPEw%3D"}]}
-< cf-ray: 9f808707fea73ad2-DFW
+< report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=LwWcKyTKfuzND8x7V%2BqVt5FiU2tdL6l6j63zcyOHyCwavFrwovb%2FZcE8u4GWBcZ2WHD1kU8zUlZVOf5WIf8LCGb5KNAFNdCFx95w7Xvb7XtEy5HcDPQT1UQnlDaLtgA%3D"}]}
+< cf-ray: 9f80990aa9d12bff-ORD
 < alt-svc: h3=":443"; ma=86400
 < 
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
 * Connection #0 to host picsum.photos left intact
-* Issue another request to this URL: 'https://fastly.picsum.photos/id/460/600/400.jpg?hmac=txE53BmGsSPaNUp4ZhIQmbewaKJFtGHlb5kPaS96s8c'
+* Issue another request to this URL: 'https://fastly.picsum.photos/id/1043/600/400.jpg?hmac=rKJ3oNfUiQwN0IYb8WLuldI1d5yxsuYCXHzWfJ8SwH4'
 * Host fastly.picsum.photos:443 was resolved.
-* IPv6: 2a04:4e42:8a::347
-* IPv4: 146.75.105.91
-*   Trying 146.75.105.91:443...
-* Connected to fastly.picsum.photos (146.75.105.91) port 443
+* IPv6: 2a04:4e42:83::347
+* IPv4: 146.75.77.91
+*   Trying 146.75.77.91:443...
+* Connected to fastly.picsum.photos (146.75.77.91) port 443
 * ALPN: curl offers h2,http/1.1
 } [5 bytes data]
 * TLSv1.3 (OUT), TLS handshake, Client hello (1):
@@ -334,15 +334,15 @@ upload: ./sample.jpg to s3://sfgerk/upload-1778160087-20738.jpg
 * TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
 { [201 bytes data]
 * using HTTP/2
-* [HTTP/2] [1] OPENED stream for https://fastly.picsum.photos/id/460/600/400.jpg?hmac=txE53BmGsSPaNUp4ZhIQmbewaKJFtGHlb5kPaS96s8c
+* [HTTP/2] [1] OPENED stream for https://fastly.picsum.photos/id/1043/600/400.jpg?hmac=rKJ3oNfUiQwN0IYb8WLuldI1d5yxsuYCXHzWfJ8SwH4
 * [HTTP/2] [1] [:method: GET]
 * [HTTP/2] [1] [:scheme: https]
 * [HTTP/2] [1] [:authority: fastly.picsum.photos]
-* [HTTP/2] [1] [:path: /id/460/600/400.jpg?hmac=txE53BmGsSPaNUp4ZhIQmbewaKJFtGHlb5kPaS96s8c]
+* [HTTP/2] [1] [:path: /id/1043/600/400.jpg?hmac=rKJ3oNfUiQwN0IYb8WLuldI1d5yxsuYCXHzWfJ8SwH4]
 * [HTTP/2] [1] [user-agent: curl/8.5.0]
 * [HTTP/2] [1] [accept: */*]
 } [5 bytes data]
-> GET /id/460/600/400.jpg?hmac=txE53BmGsSPaNUp4ZhIQmbewaKJFtGHlb5kPaS96s8c HTTP/2
+> GET /id/1043/600/400.jpg?hmac=rKJ3oNfUiQwN0IYb8WLuldI1d5yxsuYCXHzWfJ8SwH4 HTTP/2
 > Host: fastly.picsum.photos
 > User-Agent: curl/8.5.0
 > Accept: */*
@@ -352,20 +352,20 @@ upload: ./sample.jpg to s3://sfgerk/upload-1778160087-20738.jpg
 < server: nginx
 < content-type: image/jpeg
 < cache-control: public, max-age=2592000, stale-while-revalidate=60, stale-if-error=43200, immutable
-< content-disposition: inline; filename="460-600x400.jpg"
-< picsum-id: 460
+< content-disposition: inline; filename="1043-600x400.jpg"
+< picsum-id: 1043
 < timing-allow-origin: *
 < accept-ranges: bytes
-< age: 788650
-< date: Thu, 07 May 2026 13:21:23 GMT
+< age: 764503
+< date: Thu, 07 May 2026 13:33:41 GMT
 < via: 1.1 varnish
-< x-served-by: cache-dfw-kdfw8210038-DFW
+< x-served-by: cache-chi-kigq8000038-CHI
 < x-cache: HIT
 < x-cache-hits: 0
-< x-timer: S1778160083.455940,VS0,VE1
+< x-timer: S1778160821.345926,VS0,VE1
 < vary: Origin
-< content-length: 15952
+< content-length: 60688
 < 
 { [5 bytes data]
-100 15952  100 15952    0     0  46186      0 --:--:-- --:--:-- --:--:-- 46186
+100 60688  100 60688    0     0  79237      0 --:--:-- --:--:-- --:--:-- 79237
 * Connection #1 to host fastly.picsum.photos left intact
