@@ -23,7 +23,7 @@ jobs:
             unzip awscliv2.zip && sudo ./aws/install
           fi
 
-      - name: 🔧 تنظیم AWS CLI (برای ساختن لینک‌های Pre-signed)
+      - name: 🔧 تنظیم AWS CLI (برای آپلود و دریافت لینک)
         env:
           ACCESS_KEY: 0283fe7f-aa44-4041-8859-c0ee33b2d686
           SECRET_KEY: 79e5d6191420eb757b2b4c8cc44611e9bc2b123175953a08956fb8ac2809bc14
@@ -33,7 +33,7 @@ jobs:
           aws configure set aws_secret_access_key "$SECRET_KEY" --profile arvan
           aws configure set region us-east-1 --profile arvan
 
-      - name: 🤖 اجرای ربات تست (آپلود با پروکسی)
+      - name: 🤖 اجرای ربات تست (آپلود با پروکسی از طریق AWS CLI)
         env:
           BOT_TOKEN: BDGFHH0HRXYRAJSOXCJCNVNVACILVDGDMXTIIBVVAZJEGZZZYYVHUTCVFJWFNTGU
           ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
@@ -83,7 +83,13 @@ jobs:
           function parseURI(uri) {
             try {
               const u = new URL(uri);
-              return { protocol: u.protocol.replace(':',''), uuid: u.username, address: u.hostname, port: u.port, params: Object.fromEntries(u.searchParams.entries()) };
+              return {
+                protocol: u.protocol.replace(':',''),
+                uuid: u.username,
+                address: u.hostname,
+                port: u.port,
+                params: Object.fromEntries(u.searchParams.entries())
+              };
             } catch(_) { return null; }
           }
           function generateXrayConfig(uri) {
@@ -210,30 +216,29 @@ jobs:
             return out;
           }
 
+          // ********** تابع آپلود با پروکسی (نسخه نهایی) **********
           async function uploadToArvanViaProxy(localFile, objectKey) {
             const start = Date.now();
-            log(`☁️ آپلود از طریق پروکسی به S3: ${objectKey}`);
+            log(`☁️ آپلود از طریق پروکسی به S3 (با AWS CLI): ${objectKey}`);
             try {
-              // 1. ساخت Pre-signed URL از نوع PUT (برای آپلود)
-              const putCmd = `aws s3 presign "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --method PUT --expires-in 3600`;
-              const putUrl = execSync(putCmd, { encoding:'utf8' }).trim();
-              log(`🔗 PUT URL: ${putUrl.substring(0,80)}...`);
-
-              // 2. آپلود فایل با curl از طریق پروکسی socks5
-              const curlStart = Date.now();
-              execSync(`curl --socks5 127.0.0.1:10808 --upload-file "${localFile}" "${putUrl}" --max-time 300 --silent --show-error`, { stdio:'pipe' });
-              const uploadTime = ((Date.now()-curlStart)/1000).toFixed(1);
-
+              // فعال‌سازی پروکسی برای AWS CLI
+              process.env.HTTPS_PROXY = 'socks5h://127.0.0.1:10808';
+              // آپلود فایل
+              execSync(`aws s3 cp "${localFile}" "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --no-verify-ssl`, { stdio:'pipe' });
+              const uploadTime = ((Date.now()-start)/1000).toFixed(1);
               const sizeMB = (fs.statSync(localFile).size/(1024*1024)).toFixed(1);
               const speedMBps = (sizeMB / uploadTime).toFixed(1);
               log(`✅ آپلود کامل در ${uploadTime}s (سرعت: ${speedMBps} MB/s)`);
 
-              // 3. ساخت Pre-signed URL از نوع GET (برای دانلود)
+              // ساخت لینک دانلود Pre-signed (GET)
               const getCmd = `aws s3 presign "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --expires-in 3600`;
               const downloadUrl = execSync(getCmd, { encoding:'utf8' }).trim();
               log(`🔗 لینک دانلود: ${downloadUrl}`);
+              // پاک‌سازی متغیر پروکسی
+              delete process.env.HTTPS_PROXY;
               return { url: downloadUrl, uploadTime };
             } catch(e) {
+              delete process.env.HTTPS_PROXY;
               err('S3 upload/presign failed:', e.message);
               return null;
             }
