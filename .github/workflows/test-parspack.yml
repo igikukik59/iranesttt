@@ -1,4 +1,4 @@
-name: 🧪 تست ربات یوتیوب + آپلود آروان
+name: 🧪 تست ربات یوتیوب + آپلود پروکسی‌شده به آروان
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - name: 📥 دریافت سورس
+      - name: 📥 دریافت مخزن
         uses: actions/checkout@v4
 
       - name: 🧰 نصب پیش‌نیازها
@@ -23,7 +23,7 @@ jobs:
             unzip awscliv2.zip && sudo ./aws/install
           fi
 
-      - name: 🔧 تنظیم AWS CLI برای آروان
+      - name: 🔧 تنظیم AWS CLI (برای ساختن لینک‌های Pre-signed)
         env:
           ACCESS_KEY: 0283fe7f-aa44-4041-8859-c0ee33b2d686
           SECRET_KEY: 79e5d6191420eb757b2b4c8cc44611e9bc2b123175953a08956fb8ac2809bc14
@@ -33,7 +33,7 @@ jobs:
           aws configure set aws_secret_access_key "$SECRET_KEY" --profile arvan
           aws configure set region us-east-1 --profile arvan
 
-      - name: 🤖 اجرای ربات تست
+      - name: 🤖 اجرای ربات تست (آپلود با پروکسی)
         env:
           BOT_TOKEN: BDGFHH0HRXYRAJSOXCJCNVNVACILVDGDMXTIIBVVAZJEGZZZYYVHUTCVFJWFNTGU
           ENDPOINT: https://s3.ir-thr-at1.arvanstorage.ir
@@ -79,7 +79,7 @@ jobs:
             return await api('sendMessage', { chat_id: chatId, text });
           }
 
-          // =============== Xray ===============
+          // =============== Xray & Proxy ===============
           function parseURI(uri) {
             try {
               const u = new URL(uri);
@@ -210,18 +210,33 @@ jobs:
             return out;
           }
 
-          async function uploadToS3AndPresign(localFile, objectKey) {
+          async function uploadToArvanViaProxy(localFile, objectKey) {
             const start = Date.now();
-            log(`☁️ شروع آپلود به S3: ${objectKey}`);
+            log(`☁️ آپلود از طریق پروکسی به S3: ${objectKey}`);
             try {
-              execSync(`aws s3 cp "${localFile}" "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --no-verify-ssl`, { stdio:'pipe' });
-              const uploadTime = ((Date.now()-start)/1000).toFixed(1);
-              log(`✅ آپلود کامل در ${uploadTime}s`);
-              const presignCmd = `aws s3 presign "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --expires-in 3600`;
-              const url = execSync(presignCmd, { encoding:'utf8' }).trim();
-              log(`🔗 لینک: ${url}`);
-              return { url, uploadTime };
-            } catch(e) { err('S3 error:', e.message); return null; }
+              // 1. ساخت Pre-signed URL از نوع PUT (برای آپلود)
+              const putCmd = `aws s3 presign "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --method PUT --expires-in 3600`;
+              const putUrl = execSync(putCmd, { encoding:'utf8' }).trim();
+              log(`🔗 PUT URL: ${putUrl.substring(0,80)}...`);
+
+              // 2. آپلود فایل با curl از طریق پروکسی socks5
+              const curlStart = Date.now();
+              execSync(`curl --socks5 127.0.0.1:10808 --upload-file "${localFile}" "${putUrl}" --max-time 300 --silent --show-error`, { stdio:'pipe' });
+              const uploadTime = ((Date.now()-curlStart)/1000).toFixed(1);
+
+              const sizeMB = (fs.statSync(localFile).size/(1024*1024)).toFixed(1);
+              const speedMBps = (sizeMB / uploadTime).toFixed(1);
+              log(`✅ آپلود کامل در ${uploadTime}s (سرعت: ${speedMBps} MB/s)`);
+
+              // 3. ساخت Pre-signed URL از نوع GET (برای دانلود)
+              const getCmd = `aws s3 presign "s3://${BUCKET}/${objectKey}" --profile arvan --endpoint-url "${ENDPOINT}" --expires-in 3600`;
+              const downloadUrl = execSync(getCmd, { encoding:'utf8' }).trim();
+              log(`🔗 لینک دانلود: ${downloadUrl}`);
+              return { url: downloadUrl, uploadTime };
+            } catch(e) {
+              err('S3 upload/presign failed:', e.message);
+              return null;
+            }
           }
 
           // =============== Main ===============
@@ -275,17 +290,18 @@ jobs:
 
                   let videoPath = dlResult.path;
                   videoPath = makeCompatible(videoPath);
-                  log(`📁 فایل نهایی: ${videoPath} (${(fs.statSync(videoPath).size/1024/1024).toFixed(1)}MB)`);
+                  const fileSizeMB = (fs.statSync(videoPath).size/(1024*1024)).toFixed(1);
+                  log(`📁 فایل نهایی: ${videoPath} (${fileSizeMB}MB)`);
 
                   const objectKey = `youtube-${Date.now()}-${m[1]}.mp4`;
-                  const s3Result = await uploadToS3AndPresign(videoPath, objectKey);
+                  const s3Result = await uploadToArvanViaProxy(videoPath, objectKey);
                   if (!s3Result) {
                     await sendMessage(chatId, '❌ آپلود روی فضای ابری شکست خورد.');
                     processed = true; break;
                   }
 
                   const totalTime = ((Date.now()-totalStart)/1000).toFixed(1);
-                  await sendMessage(chatId, 
+                  await sendMessage(chatId,
                     `✅ **آماده!**\n\n` +
                     `📥 دانلود: ${dlResult.time.toFixed(1)} ثانیه\n` +
                     `☁️ آپلود: ${s3Result.uploadTime} ثانیه\n` +
