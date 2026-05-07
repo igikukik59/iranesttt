@@ -1,0 +1,67 @@
+name: Upload Random File to ParsPack S3
+
+on:
+  workflow_dispatch:   # از تب Actions دستی اجرا کن
+  push:                # یا با هر push به main اجرا بشه (می‌تونی پاک کنی)
+    branches: [ main ]
+
+jobs:
+  upload-and-link:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download a random file from internet
+        run: |
+          echo "Downloading a sample image..."
+          curl -L -o sample.jpg "https://picsum.photos/400/300.jpg"
+          echo "File downloaded: sample.jpg ($(wc -c < sample.jpg) bytes)"
+
+      - name: Install AWS CLI (already pre-installed, just check)
+        run: aws --version
+
+      - name: Configure AWS CLI with ParsPack credentials
+        env:
+          # کلیدها کاملاً داخل فایل (فقط برای تست!)
+          ACCESS_KEY: NNRPnLgYkTdXW116
+          SECRET_KEY: Duepx7acOGXppSLnMRLxqb1SCG0KbZrX
+          BUCKET: 123q123w123e
+          ENDPOINT: https://c622836.parspack.net
+        run: |
+          aws configure set aws_access_key_id "$ACCESS_KEY" --profile parspack
+          aws configure set aws_secret_access_key "$SECRET_KEY" --profile parspack
+          aws configure set region us-east-1 --profile parspack
+          echo "Profile 'parspack' configured."
+
+      - name: Generate unique object key for the uploaded file
+        id: vars
+        run: echo "object_key=test-$(date +%s)-$RANDOM.jpg" >> $GITHUB_OUTPUT
+
+      - name: Upload file to bucket
+        env:
+          BUCKET: 123q123w123e
+          ENDPOINT: https://c622836.parspack.net
+          OBJECT_KEY: ${{ steps.vars.outputs.object_key }}
+        run: |
+          echo "Uploading sample.jpg to s3://$BUCKET/$OBJECT_KEY ..."
+          aws s3 cp sample.jpg "s3://$BUCKET/$OBJECT_KEY" \
+            --profile parspack \
+            --endpoint-url "$ENDPOINT" \
+            --no-verify-ssl
+          echo "Upload done."
+
+      - name: Generate pre-signed URL (valid 1 hour)
+        env:
+          BUCKET: 123q123w123e
+          ENDPOINT: https://c622836.parspack.net
+          OBJECT_KEY: ${{ steps.vars.outputs.object_key }}
+        run: |
+          PRESIGNED=$(aws s3 presign "s3://$BUCKET/$OBJECT_KEY" \
+            --profile parspack \
+            --endpoint-url "$ENDPOINT" \
+            --expires-in 3600 2>/dev/null)
+          echo "---------------------------------------------------"
+          echo "Direct link (probably access denied):"
+          echo "https://c622836.parspack.net/$BUCKET/$OBJECT_KEY"
+          echo ""
+          echo "Pre-signed URL (valid 1 hour):"
+          echo "$PRESIGNED"
+          echo "---------------------------------------------------"
