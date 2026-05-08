@@ -22,7 +22,7 @@ jobs:
 
       - name: 🧰 نصب ابزارها
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y curl unzip python3-pip ffmpeg
+          sudo apt-get update -qq && sudo apt-get install -y curl unzip python3-pip ffmpeg aria2
           pip install yt-dlp
           wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -O /tmp/xray.zip
           unzip -q /tmp/xray.zip -d xray && chmod +x xray/xray
@@ -730,13 +730,23 @@ jobs:
             });
           }
 
-          // ======================== دانلودها ========================
+          // ======================== دانلودها (چندرشته‌ای با aria2) ========================
           async function downloadImage(url, referer) {
             const dir = '/tmp/downloaded_images';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            const outPath = path.join(dir, `img_${Date.now()}_${path.basename(new URL(url).pathname) || 'image.jpg'}`);
+            // نام فایل از URL استخراج شود
+            let filename = 'image.jpg';
             try {
-              execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 60000 });
+              const urlObj = new URL(url);
+              const b = path.basename(urlObj.pathname);
+              if (b && b.length > 0) filename = b;
+            } catch(e) {}
+            const outPath = path.join(dir, filename);
+            try {
+              execSync(
+                `aria2c --all-proxy="socks5://127.0.0.1:10808" --referer="${referer}" --user-agent="Mozilla/5.0" --dir="${dir}" --out="${filename}" -x 16 -s 16 -j 16 "${url}"`,
+                { stdio: 'inherit', timeout: 60000 }
+              );
               return { ok: true, path: outPath };
             } catch(e) { err('دانلود تصویر خطا:', e.message); return { ok: false }; }
           }
@@ -744,9 +754,18 @@ jobs:
           async function downloadFile(url, referer) {
             const dir = '/tmp/downloaded_files';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            const outPath = path.join(dir, path.basename(new URL(url).pathname) || `file_${Date.now()}`);
+            let filename = 'file';
             try {
-              execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 120000 });
+              const urlObj = new URL(url);
+              const b = path.basename(urlObj.pathname);
+              if (b && b.length > 0) filename = b;
+            } catch(e) {}
+            const outPath = path.join(dir, filename);
+            try {
+              execSync(
+                `aria2c --all-proxy="socks5://127.0.0.1:10808" --referer="${referer}" --user-agent="Mozilla/5.0" --dir="${dir}" --out="${filename}" -x 16 -s 16 -j 16 "${url}"`,
+                { stdio: 'inherit', timeout: 120000 }
+              );
               return { ok: true, path: outPath };
             } catch(e) { err('دانلود فایل خطا:', e.message); return { ok: false }; }
           }
@@ -756,42 +775,54 @@ jobs:
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const timestamp = Date.now();
 
-            // دستور yt‑dlp بدون نگرانی از کدک چون بعداً تبدیل می‌کنیم
-            const ytDlpCmd = [
+            // yt-dlp با دانلودر aria2c برای چندرشته‌ای
+            const ytDlpBase = [
               'yt-dlp',
               '--no-playlist',
               '--merge-output-format', 'mp4',
               '--force-ipv4',
               "--user-agent", "'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'",
               '--extractor-args', 'youtube:player_client=android_vr',
-              '--proxy', 'socks5://127.0.0.1:10808'
+              '--proxy', 'socks5://127.0.0.1:10808',
+              '--downloader', 'aria2c',
+              '--downloader-args', `aria2c:--all-proxy=socks5://127.0.0.1:10808 -x 16 -s 16 -j 16`
             ].join(' ');
 
             if (type === 'direct' && url.startsWith('blob:')) {
               const outPath = path.join(dir, `video_${timestamp}_page.mp4`);
               try {
-                execSync(`${ytDlpCmd} -o "${outPath}" "${pageUrl}"`, { stdio: 'inherit', timeout: 600000 });
+                execSync(`${ytDlpBase} -o "${outPath}" "${pageUrl}"`, { stdio: 'inherit', timeout: 600000 });
                 return { ok: true, path: outPath };
               } catch(e) { err('yt-dlp blob failed:', e.message); return { ok: false }; }
             }
 
             if (type === 'direct') {
-              const outPath = path.join(dir, `video_${timestamp}_${path.basename(new URL(url).pathname) || 'video.mp4'}`);
+              // دانلود مستقیم با aria2c (چندرشته‌ای)
+              let filename = 'video.mp4';
               try {
-                execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
+                const urlObj = new URL(url);
+                const b = path.basename(urlObj.pathname);
+                if (b && b.length > 0) filename = b;
+              } catch(e) {}
+              const outPath = path.join(dir, `video_${timestamp}_${filename}`);
+              try {
+                execSync(
+                  `aria2c --all-proxy="socks5://127.0.0.1:10808" --referer="${referer}" --user-agent="Mozilla/5.0" --dir="${dir}" --out="video_${timestamp}_${filename}" -x 16 -s 16 -j 16 "${url}"`,
+                  { stdio: 'inherit', timeout: 600000 }
+                );
                 return { ok: true, path: outPath };
               } catch(e) {
                 log('دانلود مستقیم شکست، تلاش با yt-dlp...');
                 const fallbackPath = path.join(dir, `video_${timestamp}_page.mp4`);
                 try {
-                  execSync(`${ytDlpCmd} -o "${fallbackPath}" "${pageUrl}"`, { stdio: 'inherit', timeout: 600000 });
+                  execSync(`${ytDlpBase} -o "${fallbackPath}" "${pageUrl}"`, { stdio: 'inherit', timeout: 600000 });
                   return { ok: true, path: fallbackPath };
                 } catch(e2) { err('yt-dlp نیز شکست:', e2.message); return { ok: false }; }
               }
             } else if (type === 'embed') {
               const outPath = path.join(dir, `video_${timestamp}_${platform || 'embed'}.mp4`);
               try {
-                execSync(`${ytDlpCmd} -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
+                execSync(`${ytDlpBase} -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
                 return { ok: true, path: outPath };
               } catch(e) { err('yt-dlp embed شکست:', e.message); return { ok: false }; }
             }
