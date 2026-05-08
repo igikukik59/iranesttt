@@ -1,26 +1,47 @@
-name: Download teleMirror Release
+name: Get teleMirror Release (API)
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write          # 👈 این خط رو اضافه کن
+  contents: write
 
 jobs:
-  download-and-push:
+  get-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download release asset
+      - name: Get latest release asset URL
+        id: get-url
         run: |
-          curl -L -o tele-mirror-win-arm64.zip "https://release-assets.githubusercontent.com/github-production-release-asset/1227802761/3df088c2-114e-4b15-9a7c-5258b4d434ae?sp=r&sv=2018-11-09&sr=b&spr=https&se=2026-05-08T11%3A15%3A08Z&rscd=attachment%3B+filename%3Dtele-mirror-win-arm64.zip&rsct=application%2Foctet-stream&skoid=96c2d410-5711-43a1-aedd-ab1947aa7ab0&sktid=398a6654-997b-47e9-b12b-9515b896b4de&skt=2026-05-08T10%3A14%3A41Z&ske=2026-05-08T11%3A15%3A08Z&sks=b&skv=2018-11-09&sig=TcTMna1%2FnLWnH1j42o9RPCKqbTsDrMDaKOub3bIOCQQ%3D&jwt=***"
+          # دریافت اطلاعات آخرین ریلیز
+          release=$(curl -sL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/ircfspace/teleMirror/releases/latest)
 
-      - name: Commit and push file
+          # پیدا کردن فایل مورد نظر
+          asset_url=$(echo "$release" | jq -r \
+            '.assets[] | select(.name == "tele-mirror-win-arm64.zip") | .url')
+
+          echo "asset_url=$asset_url" >> $GITHUB_OUTPUT
+
+      - name: Download asset
+        run: |
+          curl -L \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -o tele-mirror-win-arm64.zip \
+            "${{ steps.get-url.outputs.asset_url }}"
+
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add tele-mirror-win-arm64.zip
-          git commit -m "Add teleMirror build" || echo "No changes to commit"
+          git commit -m "Add teleMirror (latest release)" || echo "Nothing to commit"
           git push
