@@ -1,7 +1,7 @@
 name: "کوتاه‌کردن لینک با zaya.io (تست)"
 
 on:
-  workflow_dispatch:   # اجرای دستی از تب Actions
+  workflow_dispatch:
 
 jobs:
   shorten:
@@ -24,17 +24,14 @@ jobs:
 
           echo "لینک اصلی: ${LONG_URL}"
 
-          # ساخت بدنه درخواست (فقط url اجباریست)
           BODY="{\"url\":\"${LONG_URL}\"}"
           echo "بدنه درخواست: ${BODY}"
 
-          # ارسال درخواست POST
           RESPONSE=$(curl -s -w "\n%{http_code}" --location --request POST "https://zaya.io/api/v1/links" \
             --header "Content-Type: application/json" \
             --header "Authorization: Bearer ${TOKEN}" \
             --data-raw "${BODY}")
 
-          # جداسازی کد وضعیت و پاسخ JSON
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
 
@@ -44,21 +41,19 @@ jobs:
           echo "${BODY}"
           echo "-----------------------------------------"
 
-          # بررسی خطا
-          if [ "${HTTP_CODE}" != "200" ]; then
+          # 🔧 اصلاح: پذیرش 200 و 201
+          if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "201" ]; then
             echo "⛔ خطا: zaya.io کد ${HTTP_CODE} برگرداند."
             echo "پاسخ کامل: ${BODY}"
             exit 1
           fi
 
-          # استخراج لینک کوتاه با jq
           SHORT_URL=$(echo "${BODY}" | jq -r '.short_url // .data.short_url // .data.alias // "NOT_FOUND"')
           if [ "${SHORT_URL}" == "null" ] || [ "${SHORT_URL}" == "NOT_FOUND" ]; then
             echo "⛔ نتوانستیم لینک کوتاه را از پاسخ استخراج کنیم."
             exit 1
           fi
 
-          # اگر خروجی فقط یک alias بود، دامنه پیشفرض zaya.io را اضافه کن
           if [[ "${SHORT_URL}" != http* ]]; then
             DOMAIN="https://zaya.io"
             SHORT_URL="${DOMAIN}/${SHORT_URL}"
@@ -68,7 +63,6 @@ jobs:
           echo "✅ لینک کوتاه شده: ${SHORT_URL}"
           echo "========================================="
 
-          # ذخیره برای گام‌های بعدی
           echo "short_url=${SHORT_URL}" >> $GITHUB_OUTPUT
 
       - name: "نمایش نهایی"
