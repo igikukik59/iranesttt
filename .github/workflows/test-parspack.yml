@@ -1,4 +1,4 @@
-name: 🧪 تست مخزن موقت (با لاگ کامل)
+name: 🧪 تست مخزن موقت (امن با PAT_TOKEN)
 
 on:
   workflow_dispatch:
@@ -6,280 +6,126 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     permissions:
-      contents: write
+      contents: write           # برای push به ریپوی اصلی
     steps:
       - name: 📥 checkout ریپوی اصلی
         uses: actions/checkout@v4
 
-      - name: 🔬 تست کامل با دیباگ
+      - name: 🔬 تست مخزن موقت با PAT_TOKEN
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}   # 👈 توکن از Secret خونده می‌شه
         run: |
           # ============================================================
-          # مرحله صفر: آماده‌سازی
-          # ============================================================
-          PAT="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"
-
           log() { echo "[$(date '+%H:%M:%S')] ℹ️ $1"; }
           success() { echo "[$(date '+%H:%M:%S')] ✅ $1"; }
-          warn() { echo "[$(date '+%H:%M:%S')] ⚠️ $1"; }
           error() { echo "[$(date '+%H:%M:%S')] ❌ $1"; }
 
           log "=============================================="
-          log "شروع تست با لاگ کامل"
+          log "شروع تست با توکن از Secret"
           log "=============================================="
 
-          # ============================================================
-          # مرحله ۱: بررسی صحت توکن
-          # ============================================================
-          log "مرحله ۱: بررسی صحت توکن..."
-
-          echo ""
-          log "--- تست اتصال به API (گرفتن اطلاعات کاربر) ---"
-          USER_RESPONSE=$(curl -s -o /tmp/user_response.txt -w "%{http_code}" \
-            -H "Authorization: token ${PAT}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/user 2>&1)
-          
-          echo ""
-          log "HTTP status: ${USER_RESPONSE}"
-          
-          if [ "${USER_RESPONSE}" = "200" ]; then
-            success "توکن معتبر است"
-            log "اطلاعات کاربر:"
-            cat /tmp/user_response.txt | grep -E '"login"|"name"|"email"' || true
-          elif [ "${USER_RESPONSE}" = "401" ]; then
-            error "توکن نامعتبر است یا منقضی شده"
-            log "پاسخ کامل سرور:"
-            cat /tmp/user_response.txt
+          if [ -z "${PAT_TOKEN}" ]; then
+            error "PAT_TOKEN در Secret تنظیم نشده."
             exit 1
-          else
-            warn "کد وضعیت غیرمنتظره: ${USER_RESPONSE}"
-            log "پاسخ سرور:"
-            cat /tmp/user_response.txt
           fi
 
-          echo ""
-          log "--- بررسی scope های توکن ---"
-          SCOPE_RESPONSE=$(curl -s -D /tmp/scope_headers.txt -o /tmp/scope_body.txt \
-            -H "Authorization: token ${PAT}" \
-            https://api.github.com/user 2>&1)
-          
-          SCOPES=$(grep -i "x-oauth-scopes" /tmp/scope_headers.txt || echo "یافت نشد")
-          log "scope های توکن: ${SCOPES}"
+          # ۱. بررسی صحت توکن
+          log "مرحله ۱: بررسی صحت توکن..."
+          USER_CODE=$(curl -s -o /tmp/user.json -w "%{http_code}" \
+            -H "Authorization: token ${PAT_TOKEN}" \
+            https://api.github.com/user)
+          log "HTTP status: ${USER_CODE}"
+          if [ "${USER_CODE}" != "200" ]; then
+            error "توکن نامعتبر. پاسخ:"
+            cat /tmp/user.json
+            exit 1
+          fi
+          success "توکن معتبر است"
+          USERNAME=$(grep -o '"login": "[^"]*"' /tmp/user.json | head -1 | cut -d'"' -f4)
+          log "نام کاربری: ${USERNAME}"
 
-          # ============================================================
-          # مرحله ۲: ساخت مخزن موقت
-          # ============================================================
-          echo ""
-          log "=============================================="
+          # ۲. ساخت مخزن موقت
           log "مرحله ۲: ساخت مخزن موقت..."
-          
           TIMESTAMP=$(date +%s)
-          RANDOM_ID=$((RANDOM % 9000 + 1000))
-          REPO_NAME="temp-test-${TIMESTAMP}-${RANDOM_ID}"
+          REPO_NAME="temp-test-${TIMESTAMP}"
           log "نام مخزن: ${REPO_NAME}"
 
-          CREATE_RESPONSE=$(curl -s -o /tmp/create_response.txt -w "%{http_code}" \
+          CREATE_CODE=$(curl -s -o /tmp/create.json -w "%{http_code}" \
             -X POST \
-            -H "Authorization: token ${PAT}" \
+            -H "Authorization: token ${PAT_TOKEN}" \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Content-Type: application/json" \
-            -d "{\"name\":\"${REPO_NAME}\",\"auto_init\":false,\"private\":false,\"description\":\"مخزن موقت تست\"}" \
-            https://api.github.com/user/repos 2>&1)
+            -d "{\"name\":\"${REPO_NAME}\",\"auto_init\":false,\"private\":false,\"description\":\"مخزن تست موقت\"}" \
+            https://api.github.com/user/repos)
 
-          log "HTTP status ساخت مخزن: ${CREATE_RESPONSE}"
-          log "پاسخ سرور:"
-          cat /tmp/create_response.txt
-          echo ""
-
-          if [ "${CREATE_RESPONSE}" = "201" ]; then
-            success "مخزن با موفقیت ساخته شد"
-            REPO_FULL_NAME=$(grep -o '"full_name": "[^"]*"' /tmp/create_response.txt | head -1 | cut -d'"' -f4)
-            REPO_CLONE_URL=$(grep -o '"clone_url": "[^"]*"' /tmp/create_response.txt | head -1 | cut -d'"' -f4)
-            OWNER=$(echo "${REPO_FULL_NAME}" | cut -d'/' -f1)
-            log "full_name: ${REPO_FULL_NAME}"
-            log "owner: ${OWNER}"
-          elif [ "${CREATE_RESPONSE}" = "422" ]; then
-            warn "مخزن از قبل وجود دارد (تلاش مجدد با نام جدید)"
-            REPO_NAME="temp-test-${TIMESTAMP}-$((RANDOM % 9000 + 1000))"
-            log "تلاش با نام جدید: ${REPO_NAME}"
-            CREATE_RESPONSE=$(curl -s -o /tmp/create_response2.txt -w "%{http_code}" \
-              -X POST \
-              -H "Authorization: token ${PAT}" \
-              -H "Content-Type: application/json" \
-              -d "{\"name\":\"${REPO_NAME}\",\"auto_init\":false,\"private\":false}" \
-              https://api.github.com/user/repos 2>&1)
-            log "HTTP status تلاش دوم: ${CREATE_RESPONSE}"
-            cat /tmp/create_response2.txt
-            REPO_FULL_NAME=$(grep -o '"full_name": "[^"]*"' /tmp/create_response2.txt | head -1 | cut -d'"' -f4)
-            REPO_CLONE_URL=$(grep -o '"clone_url": "[^"]*"' /tmp/create_response2.txt | head -1 | cut -d'"' -f4)
-            OWNER=$(echo "${REPO_FULL_NAME}" | cut -d'/' -f1)
-          else
-            error "ساخت مخزن شکست خورد"
+          log "HTTP status ساخت: ${CREATE_CODE}"
+          if [ "${CREATE_CODE}" != "201" ]; then
+            error "ساخت مخزن شکست:"
+            cat /tmp/create.json
             exit 1
           fi
+          success "مخزن ساخته شد"
+          FULL_NAME=$(grep -o '"full_name": "[^"]*"' /tmp/create.json | head -1 | cut -d'"' -f4)
+          CLONE_URL=$(grep -o '"clone_url": "[^"]*"' /tmp/create.json | head -1 | cut -d'"' -f4)
+          OWNER=$(echo "${FULL_NAME}" | cut -d'/' -f1)
+          log "full_name: ${FULL_NAME}"
 
-          # ============================================================
-          # مرحله ۳: ساخت فایل تصادفی ۱۰MB
-          # ============================================================
-          echo ""
-          log "=============================================="
-          log "مرحله ۳: ساخت فایل تصادفی ۱۰MB..."
-
-          dd if=/dev/urandom of=/tmp/random_10mb.bin bs=1M count=10 2>&1
-          FILE_SIZE=$(stat -c%s /tmp/random_10mb.bin 2>/dev/null || stat -f%z /tmp/random_10mb.bin 2>/dev/null)
-          ACTUAL_MB=$((FILE_SIZE / 1024 / 1024))
-          log "حجم فایل: ${FILE_SIZE} بایت (${ACTUAL_MB}MB)"
+          # ۳. ساخت فایل تصادفی ۱۰MB
+          log "مرحله ۳: ساخت فایل ۱۰MB..."
+          dd if=/dev/urandom of=/tmp/random_10mb.bin bs=1M count=10 status=none
           success "فایل تصادفی ساخته شد"
 
-          # ============================================================
-          # مرحله ۴: راه‌اندازی مخزن محلی و push
-          # ============================================================
-          echo ""
-          log "=============================================="
-          log "مرحله ۴: push به مخزن موقت..."
-
-          TMP_DIR="/tmp/temp-repo-local"
-          rm -rf "${TMP_DIR}"
-          mkdir -p "${TMP_DIR}"
+          # ۴. push به مخزن موقت
+          log "مرحله ۴: push..."
+          TMP_DIR="/tmp/temp-repo"
+          rm -rf "${TMP_DIR}" && mkdir -p "${TMP_DIR}"
           cd "${TMP_DIR}"
-
-          # راه‌اندازی git
-          git init
-          git checkout -b main
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # کپی فایل
-          cp /tmp/random_10mb.bin ./random_10mb.bin
+          git init && git checkout -b main
+          git config user.name "testbot"
+          git config user.email "testbot@users.noreply.github.com"
+          cp /tmp/random_10mb.bin .
           git add random_10mb.bin
-          git commit -m "فایل تست ۱۰MB"
-
-          # push با توکن
-          PUSH_URL=$(echo "${REPO_CLONE_URL}" | sed "s|https://|https://${PAT}@|")
+          git commit -m "test file"
+          PUSH_URL=$(echo "${CLONE_URL}" | sed "s|https://|https://${PAT_TOKEN}@|")
           git remote add origin "${PUSH_URL}"
-          
-          log "در حال push..."
-          PUSH_OUTPUT=$(git push -u origin main 2>&1)
-          PUSH_EXIT=$?
-          
-          echo "${PUSH_OUTPUT}"
-          
-          if [ $PUSH_EXIT -eq 0 ]; then
-            success "push با موفقیت انجام شد"
-          else
-            error "push شکست خورد (exit code: ${PUSH_EXIT})"
-            log "خروجی کامل:"
-            echo "${PUSH_OUTPUT}"
-            exit 1
-          fi
+          git push -u origin main
+          success "push انجام شد"
 
-          # ============================================================
-          # مرحله ۵: ساخت لینک raw
-          # ============================================================
-          echo ""
-          log "=============================================="
-          log "مرحله ۵: ساخت لینک raw..."
-
+          # ۵. ساخت لینک raw
           RAW_LINK="https://raw.githubusercontent.com/${OWNER}/${REPO_NAME}/main/random_10mb.bin"
           log "لینک raw: ${RAW_LINK}"
 
-          # ============================================================
-          # مرحله ۶: تست دانلود واقعی
-          # ============================================================
-          echo ""
-          log "=============================================="
-          log "مرحله ۶: تست دانلود از raw..."
-
-          log "--- تلاش با curl (بدون follow redirect) ---"
-          DOWNLOAD_TEST1=$(curl -s -o /dev/null -w "HTTP:%{http_code} Size:%{size_download} Time:%{time_total}s" \
-            --max-time 30 \
-            "${RAW_LINK}" 2>&1)
-          log "نتیجه: ${DOWNLOAD_TEST1}"
-
-          echo ""
-          log "--- تلاش با wget (با follow redirect) ---"
-          wget -q -O /tmp/download_test.bin --timeout=30 "${RAW_LINK}" 2>&1
-          WGET_EXIT=$?
-          if [ $WGET_EXIT -eq 0 ]; then
-            DOWNLOAD_SIZE=$(stat -c%s /tmp/download_test.bin 2>/dev/null)
-            success "دانلود موفقیت‌آمیز! حجم: ${DOWNLOAD_SIZE} بایت"
-            if [ "${DOWNLOAD_SIZE}" = "${FILE_SIZE}" ]; then
-              success "حجم فایل دانلودی با فایل اصلی یکسان است"
-            else
-              warn "اختلاف حجم: اصلی=${FILE_SIZE} دانلودی=${DOWNLOAD_SIZE}"
-            fi
+          # ۶. تست دانلود از روی رانر
+          log "مرحله ۶: تست دانلود..."
+          HTTP_RESP=$(curl -s -o /tmp/downloaded.bin -w "%{http_code}" --max-time 30 "${RAW_LINK}")
+          DL_SIZE=$(stat -c%s /tmp/downloaded.bin 2>/dev/null || echo 0)
+          log "http_code=${HTTP_RESP}, size=${DL_SIZE}"
+          if [ "${HTTP_RESP}" = "200" ] && [ "${DL_SIZE}" -gt 0 ]; then
+            success "دانلود موفق از سرور گیت‌هاب"
           else
-            log "wget exit code: ${WGET_EXIT}"
-            warn "دانلود با wget ممکن است شکست خورده باشد (در ایران باید تست دستی شود)"
+            log "دانلود از رانر ممکن است محدود باشد (در ایران تست کنید)"
           fi
 
-          echo ""
-          log "--- تست با curl با follow redirect ---"
-          REDIRECT_TEST=$(curl -s -o /tmp/redirect_test.bin -w "HTTP:%{http_code} Size:%{size_download} Redirects:%{num_redirects} Time:%{time_total}s" \
-            -L --max-time 30 \
-            "${RAW_LINK}" 2>&1)
-          log "نتیجه: ${REDIRECT_TEST}"
-          REDIRECT_DOWNLOAD_SIZE=$(stat -c%s /tmp/redirect_test.bin 2>/dev/null || echo 0)
-          if [ "${REDIRECT_DOWNLOAD_SIZE}" -gt 0 ]; then
-            success "curl با redirect دانلود کرد: ${REDIRECT_DOWNLOAD_SIZE} بایت"
-          fi
-
-          # ============================================================
-          # مرحله ۷: ذخیره نتایج در ریپوی اصلی
-          # ============================================================
-          echo ""
-          log "=============================================="
-          log "مرحله ۷: ذخیره نتایج در ریپوی اصلی..."
-
+          # ۷. ذخیره نتایج در ریپوی اصلی
+          log "مرحله ۷: ذخیره نتایج..."
           cd /home/runner/work/iranesttt/iranesttt
-
-          cat > test_link.txt << ENDREPORT
-          ========================================
-          🧪 گزارش تست مخزن موقت
-          ========================================
-          زمان: $(date '+%Y-%m-%d %H:%M:%S')
-          
-          --- اطلاعات توکن ---
-          (4 کاراکتر اول): ${PAT:0:4}...
-          (4 کاراکتر آخر): ...${PAT: -4}
-          
-          --- اطلاعات مخزن ---
-          نام مخزن: ${REPO_NAME}
-          مسیر کامل: ${REPO_FULL_NAME}
-          owner: ${OWNER}
-          لینک clone: ${REPO_CLONE_URL}
-          
-          --- لینک raw (برای تست در ایران) ---
+          cat > test_link.txt << EOF
+          ✅ تست با PAT_TOKEN (امن) موفق
+          زمان: $(date)
+          مخزن: ${FULL_NAME}
+          لینک مستقیم:
           ${RAW_LINK}
-          
-          --- نتایج تست دانلود از سرور گیت‌هاب ---
-          تست curl (بدون redirect): ${DOWNLOAD_TEST1}
-          تست wget: exit code ${WGET_EXIT}, حجم: ${DOWNLOAD_SIZE:-ناموفق} بایت
-          تست curl (با redirect): ${REDIRECT_TEST}, حجم: ${REDIRECT_DOWNLOAD_SIZE} بایت
-          
-          --- راهنمای تست دستی در ایران ---
-          ۱. لینک بالا را در مرورگر خود باز کنید
-          ۲. اگر فایل ۱۰MB دانلود شد، یعنی raw در ایران کار می‌کند
-          ۳. اگر ERR_CONNECTION_RESET داد، یعنی raw فیلتر است
-          
-          ⚠️ مخزن موقت ${REPO_NAME} تا زمان حذف دستی باقی می‌ماند.
-          لطفاً بعد از تست از تنظیمات گیت‌هاب حذفش کنید.
-          ========================================
-          ENDREPORT
+
+          برای تست در ایران، لینک بالا را در مرورگر باز کنید.
+          EOF
 
           git add test_link.txt
-          git commit -m "📊 گزارش کامل تست مخزن موقت"
+          git commit -m "گزارش تست با PAT_TOKEN"
           git push
-
+          success "نتایج در test_link.txt ذخیره شد"
           echo ""
-          success "==========================================="
-          success "گزارش کامل در فایل test_link.txt ذخیره شد"
-          success "==========================================="
-          echo ""
-          log "لینک raw برای تست در ایران:"
-          echo ""
-          echo "    ${RAW_LINK}"
-          echo ""
-          log "مخزن موقت: https://github.com/${REPO_FULL_NAME}"
+          echo "=============================="
+          echo "   ${RAW_LINK}"
+          echo "=============================="
