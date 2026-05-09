@@ -1,73 +1,146 @@
-name: "کوتاه‌کردن لینک با zaya.io (تست)"
+name: 🧪 تست آپلود مستقیم گیت‌هاب (Release API)
 
 on:
   workflow_dispatch:
 
 jobs:
-  shorten:
-    name: "کوتاه کردن لینک"
+  test:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 5
+    permissions:
+      contents: write      # برای ساخت Release و آپلود asset لازمه
     steps:
-      - name: "Checkout"
+      - name: 📥 دریافت کد
         uses: actions/checkout@v4
 
-      - name: "ارسال به zaya.io و دریافت لینک کوتاه"
-        id: shorten
+      - name: 🚀 تست ایجاد Release و آپلود فایل ۱۰MB
         run: |
-          echo "========================================="
-          echo "شروع فرآیند کوتاه‌سازی لینک"
-          echo "========================================="
+          cat > test_upload.cjs << 'ENDSCRIPT'
+          const { execSync } = require('child_process');
+          const fs = require('fs');
+          const path = require('path');
 
-          LONG_URL="https://github.com/igikukik59/Proxy-Google-Checker/raw/refs/heads/main/downloaded_videos/video_1777368946169_page.mp4"
-          TOKEN="5YThpa8rq11Kf6memGJXfiTnTzYqLH1Xcs2csk1rPdulzMwDVOwTn5V8e6MJ"
+          // ========== تنظیمات ==========
+          const GITHUB_TOKEN = process.env.GITHUB_TOKEN;   // توکن خودکار
+          const REPO = process.env.GITHUB_REPOSITORY;      // "owner/repo"
+          const API_BASE = 'https://api.github.com';
+          const FILE_SIZE_MB = 10;
 
-          echo "لینک اصلی: ${LONG_URL}"
+          // ========== ابزارهای کمکی ==========
+          function log(...args) { console.log(`[${new Date().toISOString().substring(0,19)}]`, ...args); }
 
-          BODY="{\"url\":\"${LONG_URL}\"}"
-          echo "بدنه درخواست: ${BODY}"
+          async function apiRequest(method, url, data = null, extraHeaders = {}) {
+            const headers = {
+              'Authorization': `token ${GITHUB_TOKEN}`,
+              'Accept': 'application/vnd.github.v3+json',
+              ...extraHeaders
+            };
+            const options = { method, headers };
+            if (data) {
+              options.body = JSON.stringify(data);
+              headers['Content-Type'] = 'application/json';
+            }
+            const res = await fetch(url, options);
+            const status = res.status;
+            const respData = await res.json().catch(() => ({}));
+            if (status >= 400) {
+              throw new Error(`GitHub API error (${status}): ${JSON.stringify(respData)}`);
+            }
+            return { status, data: respData, response: res };
+          }
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" --location --request POST "https://zaya.io/api/v1/links" \
-            --header "Content-Type: application/json" \
-            --header "Authorization: Bearer ${TOKEN}" \
-            --data-raw "${BODY}")
+          // ========== ساخت فایل تصادفی ==========
+          function createRandomFile(filePath, sizeMB) {
+            const sizeBytes = sizeMB * 1024 * 1024;
+            const chunk = Buffer.allocUnsafe(1024 * 1024); // 1MB buffer
+            const fd = fs.openSync(filePath, 'w');
+            for (let written = 0; written < sizeBytes; written += chunk.length) {
+              // هر بار buffer رو با داده تصادفی پر کن
+              for (let i = 0; i < chunk.length; i++) chunk[i] = Math.floor(Math.random() * 256);
+              const toWrite = Math.min(chunk.length, sizeBytes - written);
+              fs.writeSync(fd, chunk, 0, toWrite);
+            }
+            fs.closeSync(fd);
+            log(`📁 فایل تصادفی ${sizeMB} مگابایتی ساخته شد: ${filePath}`);
+          }
 
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
+          // ========== اجرای اصلی ==========
+          (async () => {
+            if (!GITHUB_TOKEN) { log('❌ توکن گیت‌هاب یافت نشد.'); process.exit(1); }
+            const [owner, repo] = REPO.split('/');
 
-          echo "-----------------------------------------"
-          echo "کد وضعیت HTTP: ${HTTP_CODE}"
-          echo "پاسخ دریافتی:"
-          echo "${BODY}"
-          echo "-----------------------------------------"
+            // ۱. ساخت Release جدید
+            const tag = `test-upload-${Date.now()}`;
+            const releaseName = `🧪 تست آپلود مستقیم (${new Date().toISOString().substring(0,19)})`;
+            log(`🏷️ ساختن Release با tag: ${tag}`);
 
-          # 🔧 اصلاح: پذیرش 200 و 201
-          if [ "${HTTP_CODE}" != "200" ] && [ "${HTTP_CODE}" != "201" ]; then
-            echo "⛔ خطا: zaya.io کد ${HTTP_CODE} برگرداند."
-            echo "پاسخ کامل: ${BODY}"
-            exit 1
-          fi
+            const createRes = await apiRequest('POST', `${API_BASE}/repos/${owner}/${repo}/releases`, {
+              tag_name: tag,
+              name: releaseName,
+              body: 'این یک Release موقت برای تست لینک مستقیم است.',
+              draft: false,
+              prerelease: true
+            });
 
-          SHORT_URL=$(echo "${BODY}" | jq -r '.short_url // .data.short_url // .data.alias // "NOT_FOUND"')
-          if [ "${SHORT_URL}" == "null" ] || [ "${SHORT_URL}" == "NOT_FOUND" ]; then
-            echo "⛔ نتوانستیم لینک کوتاه را از پاسخ استخراج کنیم."
-            exit 1
-          fi
+            const releaseId = createRes.data.id;
+            const uploadUrl = createRes.data.upload_url.replace('{?name,label}', '');
+            log(`✅ Release ساخته شد (ID: ${releaseId})`);
 
-          if [[ "${SHORT_URL}" != http* ]]; then
-            DOMAIN="https://zaya.io"
-            SHORT_URL="${DOMAIN}/${SHORT_URL}"
-          fi
+            // ۲. ساخت فایل تصادفی ۱۰MB
+            const testFile = '/tmp/test_10mb.bin';
+            createRandomFile(testFile, FILE_SIZE_MB);
 
-          echo "========================================="
-          echo "✅ لینک کوتاه شده: ${SHORT_URL}"
-          echo "========================================="
+            // ۳. آپلود فایل به عنوان asset
+            const assetName = 'test_10mb_random.bin';
+            log(`📤 آپلود فایل ${assetName}...`);
 
-          echo "short_url=${SHORT_URL}" >> $GITHUB_OUTPUT
+            const stats = fs.statSync(testFile);
+            const fileBuffer = fs.readFileSync(testFile);
 
-      - name: "نمایش نهایی"
-        run: |
-          echo ""
-          echo "🎉 لینک کوتاه نهایی:"
-          echo "${{ steps.shorten.outputs.short_url }}"
-          echo ""
+            // آپلود asset (مطابق مستندات گیت‌هاب)
+            const uploadHeaders = {
+              'Content-Type': 'application/octet-stream',
+            };
+            const assetUrl = `${uploadUrl}?name=${encodeURIComponent(assetName)}`;
+            const assetRes = await fetch(assetUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/octet-stream',
+              },
+              body: fileBuffer,
+            });
+
+            if (assetRes.status !== 201) {
+              const errBody = await assetRes.text();
+              throw new Error(`آپلود asset شکست خورد (${assetRes.status}): ${errBody}`);
+            }
+
+            const assetData = await assetRes.json();
+            const downloadUrl = assetData.browser_download_url;
+
+            log(`🎉 آپلود موفقیت‌آمیز!`);
+            log(`🔗 لینک مستقیم دانلود: ${downloadUrl}`);
+            console.log('\n==================================================');
+            console.log('👇👇 روی این لینک کلیک کن / در مرورگر باز کن:');
+            console.log(downloadUrl);
+            console.log('==================================================\n');
+
+            // ۴. (اختیاری) ذخیره اطلاعات برای حذف بعدی
+            const info = {
+              releaseId,
+              assetId: assetData.id,
+              downloadUrl,
+              tag
+            };
+            fs.writeFileSync('/tmp/release_info.json', JSON.stringify(info, null, 2));
+            log('📄 اطلاعات در /tmp/release_info.json ذخیره شد (برای حذف احتمالی)');
+            log('⚠️ این Release به‌طور خودکار حذف نمی‌شود. می‌توانید بعداً دستی پاک کنید.');
+          })().catch(err => {
+            console.error('❌ خطا:', err);
+            process.exit(1);
+          });
+          ENDSCRIPT
+
+          node test_upload.cjs
