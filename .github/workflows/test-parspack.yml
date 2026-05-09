@@ -161,20 +161,20 @@ jobs:
           if (!TOKEN) { console.error('❌ TOKEN تنظیم نشده'); process.exit(1); }
           if (!PAT_TOKEN) { console.error('❌ PAT_TOKEN تنظیم نشده'); process.exit(1); }
 
-          const MAX_DURATION = 5400; // 1.5 hours in seconds
-          const DAILY_LIMIT = 5400;  // per user per cycle
+          const MAX_DURATION = 5400;          // 1.5 hours in seconds
+          const DAILY_LIMIT = 5400;           // per user per cycle
           const MAX_PROXY_RETRIES = 3;
           const MAX_QUEUE = 200;
-          const MIN_SPEED_BYTES = 1 * 1024 * 1024; // 1 MB/s
-          const SMALL_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
-          const CHUNK_SIZE = 90 * 1024 * 1024; // 90 MB per chunk
+          const MIN_SPEED_BYTES = 1 * 1024 * 1024;   // 1 MB/s
+          const SMALL_FILE_BYTES = 10 * 1024 * 1024;  // 10 MB
+          const CHUNK_SIZE = 90 * 1024 * 1024;        // 90 MB per chunk
           const MAX_REPO_SIZE = 9 * 1024 * 1024 * 1024; // 9 GB max repo size
 
-          // ---------- state ----------
+          // ======================== state ========================
           let proxies = [];
           const queue = [];
           let isProcessing = false;
-          const recentTimes = [];
+          const recentTimes = [];         // total processing times per video
           let currentProxy = null;
           let xrayProc = null;
           let consecutiveSuccess = 0;
@@ -186,12 +186,11 @@ jobs:
           const priorityCredits = new Map();
 
           // temp repo management
-          let currentTempRepo = null;  // { owner, repo, fullName, cloneUrl }
+          let currentTempRepo = null;     // { owner, repo, fullName, cloneUrl }
           let currentLocalRepoPath = '/tmp/current-temp-repo';
-          let currentRepoPushedSize = 0; // bytes pushed to current repo
-          const allTempRepos = []; // array of { fullName, cloneUrl }
+          let currentRepoPushedSize = 0;  // bytes pushed to current repo
+          const allTempRepos = [];        // [{ fullName, cloneUrl }]
 
-          // ---------- helpers ----------
           function ts() { return new Date().toISOString().replace('T',' ').substring(0,19); }
           function log(...args) {
             const msg = `[${ts()}] ${args.join(' ')}`;
@@ -204,6 +203,23 @@ jobs:
             try { fs.appendFileSync(LOG_FILE, msg + '\n'); } catch(_){}
           }
           const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+          // ======================== GitHub API helpers ========================
+          async function ghApi(url, options = {}) {
+            const res = await fetch(url, {
+              ...options,
+              headers: {
+                Authorization: `token ${PAT_TOKEN}`,
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+              }
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(`GitHub API (${res.status}): ${JSON.stringify(data)}`);
+            }
+            return data;
+          }
 
           // ======================== Xray ========================
           function parseURI(uri) {
@@ -511,21 +527,24 @@ jobs:
             return out;
           }
 
-          // ======================== GitHub API helpers (temp repo) ========================
-          async function ghApi(url, options = {}) {
-            const res = await fetch(url, {
-              ...options,
-              headers: {
-                Authorization: `token ${PAT_TOKEN}`,
-                'Content-Type': 'application/json',
-                ...(options.headers || {})
+          // ======================== مدیریت مخازن موقت ========================
+          async function deleteAllOrphanTempRepos() {
+            log('🔍 جستجوی مخازن موقت باقی‌مانده از دوره‌های قبل...');
+            try {
+              // دریافت لیست مخازن کاربر
+              const repos = await ghApi('https://api.github.com/user/repos?per_page=100');
+              const orphanRepos = repos.filter(r => r.name.startsWith('yt-temp-'));
+              log(`📋 ${orphanRepos.length} مخزن موقت باقی‌مانده پیدا شد.`);
+              for (const repo of orphanRepos) {
+                log(`🗑️ حذف مخزن: ${repo.full_name}`);
+                await ghApi(`https://api.github.com/repos/${repo.full_name}`, { method: 'DELETE' }).catch(e => {
+                  err(`خطا در حذف ${repo.full_name}: ${e.message}`);
+                });
               }
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(`GitHub API (${res.status}): ${JSON.stringify(data)}`);
+              log('✅ پاکسازی کامل شد.');
+            } catch (e) {
+              err('خطا در پاکسازی مخازن قدیمی:', e.message);
             }
-            return data;
           }
 
           async function createNewTempRepo() {
@@ -566,7 +585,6 @@ jobs:
             execSync('git checkout -b main', {stdio:'pipe'});
             execSync('git config user.name "yt-bot"', {stdio:'pipe'});
             execSync('git config user.email "yt-bot@users.noreply.github.com"', {stdio:'pipe'});
-            // Add an initial empty commit to have 'main' branch
             execSync('git commit --allow-empty -m "init"', {stdio:'pipe'});
           }
 
@@ -574,7 +592,6 @@ jobs:
             if (!currentTempRepo) {
               currentTempRepo = await createNewTempRepo();
               initLocalRepo();
-              // Set remote
               const pushUrl = currentTempRepo.cloneUrl.replace('https://', `https://${PAT_TOKEN}@`);
               execSync(`git remote add origin ${pushUrl}`, {stdio:'pipe'});
               execSync('git push -u origin main', {stdio:'pipe'});
@@ -582,16 +599,10 @@ jobs:
             }
           }
 
-          // Function to push a set of files (video chunks) into the temp repo
-          // files: array of { localPath, fileName } (fileName like part_001.mp4, localPath full path)
-          // videoId: unique string for folder name
-          // Returns array of raw links
+          // Push video files to temp repo, returns raw links
           async function pushVideoToTempRepo(videoId, files, totalSize) {
-            // Ensure a repo is set up and has space
             if (currentRepoPushedSize + totalSize > MAX_REPO_SIZE) {
-              // Finish current repo, create new one
               log(`🔄 مخزن فعلی پر شد (${(currentRepoPushedSize/(1024*1024*1024)).toFixed(1)}GB)، ساخت مخزن جدید`);
-              // We don't need to delete the old one now
               currentTempRepo = null;
               currentRepoPushedSize = 0;
               await setupCurrentRepo();
@@ -599,7 +610,6 @@ jobs:
 
             await setupCurrentRepo();
 
-            // Copy files to local repo under videoId folder
             const folderPath = path.join(currentLocalRepoPath, videoId);
             if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
 
@@ -607,78 +617,102 @@ jobs:
               fs.copyFileSync(f.localPath, path.join(folderPath, f.fileName));
             }
 
-            // Git add and commit
             process.chdir(currentLocalRepoPath);
             execSync(`git add ${videoId}`, {stdio:'pipe'});
             execSync(`git commit -m "افزودن ویدیو ${videoId}"`, {stdio:'pipe'});
-
-            // Push
             execSync('git push', {stdio:'pipe'});
             log(`📤 ویدیو ${videoId} به مخزن ${currentTempRepo.fullName} push شد.`);
-
             currentRepoPushedSize += totalSize;
 
-            // Generate raw links
             const links = files.map(f => {
               return `https://raw.githubusercontent.com/${currentTempRepo.owner}/${currentTempRepo.repo}/main/${videoId}/${encodeURIComponent(f.fileName)}`;
             });
             return links;
           }
 
-          // ======================== تقسیم ویدیو و ارسال لینک‌ها ========================
+          // ======================== پردازش ویدیو و ارسال لینک‌ها ========================
           async function processAndSendVideo(chatId, videoPath, baseName) {
+            const timings = {
+              start: Date.now(),
+              downloadEnd: 0,
+              splitEnd: 0,
+              pushEnd: 0
+            };
+
             const stats = fs.statSync(videoPath);
             const totalSize = stats.size;
             const totalMB = (totalSize / (1024*1024)).toFixed(1);
-            log(`✂️ پردازش ویدیو ${baseName} (${totalMB}MB) برای ارسال لینک مستقیم`);
+            log(`✂️ پردازش ویدیو ${baseName} (${totalMB}MB)`);
             await sendMessage(chatId, `📦 ویدیو ${totalMB}MB است. در حال آماده‌سازی قطعات...`);
 
             const videoId = 'vid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+            let files = [];
 
             if (totalSize <= CHUNK_SIZE) {
-              // No split needed, just push single file
-              const singleFile = [{ localPath: videoPath, fileName: `${baseName}.mp4` }];
-              const links = await pushVideoToTempRepo(videoId, singleFile, totalSize);
-              const linkText = `🎬 ${baseName}\n📥 لینک مستقیم:\n${links[0]}`;
-              await sendMessage(chatId, linkText);
-              return;
+              // فایل کوچک، بدون تقسیم
+              files = [{ localPath: videoPath, fileName: `${baseName}.mp4` }];
+            } else {
+              // تقسیم بر اساس زمان (با استفاده از bitrate) برای قطعات حدود 90MB
+              const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`, {encoding:'utf8'}).trim());
+              const br = parseFloat(execSync(`ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "${videoPath}"`, {encoding:'utf8'}).trim());
+              const targetBytes = CHUNK_SIZE;
+              let segTime = Math.floor((targetBytes * 8) / br);
+              segTime = Math.min(1800, Math.max(30, segTime)); // clamp between 30s and 30min
+              log(`🎯 تقسیم: bitrate ${(br/1000).toFixed(0)}kbps, قطعه‌های ${segTime} ثانیه‌ای`);
+
+              const chunkDir = `/tmp/chunks_${Date.now()}`;
+              fs.mkdirSync(chunkDir, { recursive: true });
+              const pattern = path.join(chunkDir, 'part_%03d.mp4');
+              execSync(`ffmpeg -i "${videoPath}" -c copy -f segment -segment_time ${segTime} -reset_timestamps 1 "${pattern}"`, {stdio:'inherit', timeout:600000});
+
+              const chunkNames = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
+              if (chunkNames.length === 0) {
+                fs.rmSync(chunkDir, { recursive: true });
+                throw new Error('تقسیم ویدیو شکست خورد');
+              }
+              files = chunkNames.map(name => ({
+                localPath: path.join(chunkDir, name),
+                fileName: name
+              }));
+              // splitEnd will be recorded after FFmpeg
             }
 
-            // Split into ~90MB chunks
-            const chunkDir = `/tmp/chunks_${Date.now()}`;
-            fs.mkdirSync(chunkDir, { recursive: true });
-            const pattern = path.join(chunkDir, 'part_%03d.mp4');
-            execSync(`ffmpeg -i "${videoPath}" -c copy -f segment -segment_size ${CHUNK_SIZE} -reset_timestamps 1 "${pattern}"`, {stdio:'inherit', timeout:600000});
+            timings.splitEnd = Date.now();
 
-            let chunks = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
-            if (chunks.length === 0) {
-              fs.rmSync(chunkDir, { recursive: true });
-              await sendMessage(chatId, '❌ خطا در تقسیم ویدیو');
-              return;
-            }
-
-            const files = chunks.map(name => ({
-              localPath: path.join(chunkDir, name),
-              fileName: name
-            }));
-
+            // Push to GitHub
             const links = await pushVideoToTempRepo(videoId, files, totalSize);
+            timings.pushEnd = Date.now();
 
-            // Clean up chunks
-            for (const f of files) { try { fs.unlinkSync(f.localPath); } catch(_) {} }
-            fs.rmSync(chunkDir, { recursive: true });
+            // Cleanup chunks if any
+            for (const f of files) {
+              try { if (f.localPath !== videoPath) fs.unlinkSync(f.localPath); } catch(_) {}
+            }
+            if (files.length > 1) {
+              // remove chunk directory
+              try { fs.rmSync(path.dirname(files[0].localPath), { recursive: true }); } catch(_) {}
+            }
 
-            // Build message with all links
+            // Build message
             let msg = `🎬 ${baseName} آماده دانلود (حجم کل: ${totalMB}MB)\n\n📥 لینک‌های دانلود مستقیم (تا ۳ ساعت معتبر):\n\n`;
             links.forEach((link, i) => {
               msg += `${i+1}. ${link}\n`;
             });
             msg += '\n⚠️ این لینک‌ها موقت هستند و پس از چند ساعت حذف می‌شوند. لطفاً سریع دانلود کنید.';
+
+            // Add timing summary
+            const downloadDur = timings.downloadEnd ? (timings.downloadEnd - timings.start) / 1000 : 0;
+            const splitDur = (timings.splitEnd - (timings.downloadEnd || timings.start)) / 1000;
+            const pushDur = (timings.pushEnd - timings.splitEnd) / 1000;
+            const totalTime = (timings.pushEnd - timings.start) / 1000;
+            msg += `\n\n⏱️ زمان دانلود: ${downloadDur.toFixed(1)}s | تقسیم: ${splitDur.toFixed(1)}s | آپلود: ${pushDur.toFixed(1)}s\nکل: ${totalTime.toFixed(1)}s`;
+
             await sendMessage(chatId, msg);
-            log(`📋 لینک‌ها برای ${baseName} ارسال شد.`);
+            log(`📋 لینک‌ها برای ${baseName} ارسال شد. زمان کل: ${totalTime.toFixed(1)}s`);
+
+            return timings;
           }
 
-          // ======================== صف و پردازش ========================
+          // ======================== آمار و صف ========================
           function getAverageTime() {
             if (recentTimes.length === 0) return 90;
             return recentTimes.reduce((a,b)=>a+b, 0) / recentTimes.length;
@@ -740,11 +774,13 @@ jobs:
             resize_keyboard: true, one_time_keyboard: false
           };
 
+          // ======================== پردازش درخواست ========================
           async function processRequest(chatId, url, videoDuration) {
             const startAll = Date.now();
             let success = false;
             let finalSize = 0;
             let dlTime = 0;
+            let timings = { start: startAll, downloadEnd: 0, splitEnd: 0, pushEnd: 0 };
             try {
               await sleep(Math.floor(Math.random() * 4000) + 1000);
 
@@ -784,6 +820,7 @@ jobs:
 
               let videoPath = dlResult.path;
               dlTime = dlResult.time;
+              timings.downloadEnd = Date.now();
 
               const compatPath = await makeCompatible(videoPath);
               if (compatPath !== videoPath) { try { fs.unlinkSync(videoPath); } catch(_){}; videoPath = compatPath; }
@@ -808,7 +845,11 @@ jobs:
 
               await sendMessage(chatId, `✅ دانلود شد | حجم: ${finalMB}MB | زمان: ${dlTime}s`);
               const baseName = path.basename(videoPath, path.extname(videoPath));
-              await processAndSendVideo(chatId, videoPath, baseName);
+
+              // processAndSendVideo returns its own timings; we can merge
+              const splitTimings = await processAndSendVideo(chatId, videoPath, baseName);
+              timings.splitEnd = splitTimings.splitEnd;
+              timings.pushEnd = splitTimings.pushEnd;
 
               try { fs.unlinkSync(videoPath); } catch(_){}
               success = true;
@@ -937,6 +978,9 @@ jobs:
 
           // ======================== اجرای اصلی ========================
           (async () => {
+            // 0. Clean orphan temp repos first
+            await deleteAllOrphanTempRepos();
+
             const me = await api('getMe');
             if (!me?.data?.bot?.username) { err('توکن نامعتبر'); process.exit(1); }
             log('✅ ربات:', me.data.bot.username);
@@ -947,7 +991,6 @@ jobs:
 
             if (!(await switchToRandomProxy('شروع ربات'))) { err('❌ هیچ پروکسی سالمی یافت نشد'); process.exit(1); }
 
-            // پاکسازی پیام‌های قدیمی
             log('🧹 پاکسازی پیام‌های قدیمی...');
             let offset = null;
             while (true) {
@@ -1039,8 +1082,8 @@ jobs:
             saveStatsToFile();
             gitPushAll();
 
-            // حذف تمام مخازن موقت ساخته شده
-            log('🧹 حذف مخازن موقت...');
+            // حذف مخازن موقت این چرخه
+            log('🧹 حذف مخازن موقت این چرخه...');
             for (const repo of allTempRepos) {
               await deleteTempRepo(repo.fullName);
             }
