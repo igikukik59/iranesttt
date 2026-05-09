@@ -1,4 +1,4 @@
-name: 🎬 ربات یوتیوب (نسخهٔ طلایی نهایی با ادمین)
+name: 🎬 ربات یوتیوب (نسخهٔ طلایی نهایی)
 
 on:
   workflow_dispatch:
@@ -151,7 +151,6 @@ jobs:
           execSync('git config --global user.name "github-actions[bot]"', {stdio:'pipe'});
           execSync('git config --global user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
 
-          // ذخیره مسیر اصلی workspace برای دسترسی به xray
           const WORKDIR = process.cwd();
           const PROXY_FILE = 'کانفیگ های خوب.txt';
           const COOKIE_FILE = '/tmp/youtube_cookies.txt';
@@ -163,14 +162,15 @@ jobs:
           if (!TOKEN) { console.error('❌ TOKEN تنظیم نشده'); process.exit(1); }
           if (!PAT_TOKEN) { console.error('❌ PAT_TOKEN تنظیم نشده'); process.exit(1); }
 
-          const MAX_DURATION = 5400;          // 1.5 hours
-          const DAILY_LIMIT = 5400;           // per user per cycle
+          const MAX_DURATION = 5400;
+          const DAILY_LIMIT = 5400;
           const MAX_PROXY_RETRIES = 3;
           const MAX_QUEUE = 200;
-          const MIN_SPEED_BYTES = 1 * 1024 * 1024;   // 1 MB/s
-          const SMALL_FILE_BYTES = 10 * 1024 * 1024;  // 10 MB
-          const CHUNK_SIZE = 80 * 1024 * 1024;        // target 80 MB per chunk (safe under 100)
-          const MAX_REPO_SIZE = 9 * 1024 * 1024 * 1024; // 9 GB
+          const MIN_SPEED_BYTES = 1 * 1024 * 1024;
+          const SMALL_FILE_BYTES = 10 * 1024 * 1024;
+          const CHUNK_TARGET = 85 * 1024 * 1024;  // هدف ۸۵ مگابایت
+          const CHUNK_MAX = 95 * 1024 * 1024;    // سقف ۹۵ مگابایت
+          const MAX_REPO_SIZE = 9 * 1024 * 1024 * 1024;
 
           let proxies = [];
           const queue = [];
@@ -186,11 +186,10 @@ jobs:
           const proxyCookieMap = new Set();
           const priorityCredits = new Map();
 
-          // temp repo management
           let currentTempRepo = null;
           let currentLocalRepoPath = '/tmp/current-temp-repo';
           let currentRepoPushedSize = 0;
-          const allTempRepos = [];   // [{ fullName, cloneUrl }]
+          const allTempRepos = [];
 
           function ts() { return new Date().toISOString().replace('T',' ').substring(0,19); }
           function log(...args) {
@@ -205,7 +204,7 @@ jobs:
           }
           const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-          // ======================== GitHub API helpers ========================
+          // ======================== GitHub API ========================
           async function ghApi(url, options = {}) {
             const res = await fetch(url, {
               ...options,
@@ -220,7 +219,7 @@ jobs:
             return data;
           }
 
-          // ======================== Xray (using WORKDIR) ========================
+          // ======================== Xray ========================
           function parseURI(uri) {
             try {
               const u = new URL(uri);
@@ -322,7 +321,7 @@ jobs:
             } catch(e) { err('خطای کوکی:', e.message); if (browser) await browser.close().catch(()=>{}); return false; }
           }
 
-          // ======================== پروکسی تصادفی ========================
+          // ======================== پروکسی ========================
           function getRandomProxy() {
             if (proxies.length === 0) return null;
             const idx = Math.floor(Math.random() * proxies.length);
@@ -350,7 +349,7 @@ jobs:
             return false;
           }
 
-          // ======================== اطلاعات واقعی ویدیو ========================
+          // ======================== اطلاعات ویدیو ========================
           function getRealVideoInfo(url) {
             const cook = fs.existsSync(COOKIE_FILE) ? `--cookies ${COOKIE_FILE}` : '';
             const cmd = `yt-dlp ${cook} --proxy socks5h://127.0.0.1:10808 --no-playlist --dump-json "${url}"`;
@@ -380,7 +379,6 @@ jobs:
               });
             });
           }
-
           function getErrorMessageFromStderr(stderrText) {
             const s = stderrText || '';
             if (s.includes('Sign in to confirm you’re not a bot')) return '🤖 یوتیوب درخواست را مشکوک تشخیص داد. لطفاً چند دقیقه بعد دوباره امتحان کنید.';
@@ -390,7 +388,7 @@ jobs:
             return '⚠️ نتوانستم اطلاعات ویدیو را دریافت کنم.';
           }
 
-          // ======================== دانلود با نظارت سرعت ========================
+          // ======================== دانلود yt-dlp ========================
           async function downloadYouTube(url) {
             if (!currentProxy) return null;
             if (!(await grabCookies())) return null;
@@ -461,7 +459,6 @@ jobs:
                 resolve({ error: true, stderr: e.message });
               });
 
-              // نظارت بر سرعت
               monitorDelay = setTimeout(() => {
                 if (processEnded) return;
                 try {
@@ -526,99 +523,46 @@ jobs:
             return out;
           }
 
-          // ======================== تقسیم هوشمند (تضمین زیر ۱۰۰MB) ========================
+          // ======================== تقسیم سریع و دقیق ========================
           function splitVideoSafe(inputPath, chunkDir) {
-            // returns array of chunk file paths (already moved to chunkDir)
-            const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim());
-            const br = parseFloat(execSync(`ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim());
-            const fileSize = fs.statSync(inputPath).size;
-
-            // If file is already small enough, just copy it
-            if (fileSize <= CHUNK_SIZE) {
+            const stats = fs.statSync(inputPath);
+            if (stats.size <= CHUNK_MAX) {
               const dest = path.join(chunkDir, 'part_000.mp4');
               fs.copyFileSync(inputPath, dest);
               return [dest];
             }
 
-            // Estimate segment time for ~80MB chunks
-            let segTime = Math.floor((CHUNK_SIZE * 8) / br);
-            segTime = Math.min(1800, Math.max(30, segTime));
-            log(`🎯 تقسیم اولیه: bitrate ${(br/1000).toFixed(0)}kbps, قطعه‌های ${segTime}s`);
+            const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim());
+            const br = parseFloat(execSync(`ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim());
+            const segTime = Math.max(30, Math.floor((CHUNK_TARGET * 8) / br));
+            log(`🎯 تقسیم: bitrate ${(br/1000).toFixed(0)}kbps, قطعه‌های ${segTime}s`);
 
             const pattern = path.join(chunkDir, 'part_%03d.mp4');
             execSync(`ffmpeg -i "${inputPath}" -c copy -f segment -segment_time ${segTime} -reset_timestamps 1 "${pattern}"`, {stdio:'inherit', timeout:600000});
 
-            let chunks = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
-            // Check each chunk size
-            let oversized = [];
-            for (const fname of chunks) {
-              const sz = fs.statSync(path.join(chunkDir, fname)).size;
-              if (sz > 95 * 1024 * 1024) {
-                oversized.push(fname);
-              }
-            }
-
-            // If any chunk too large, re-split those with half segment time
-            if (oversized.length > 0) {
-              log(`⚠️ ${oversized.length} قطعه بالای ۹۵MB پیدا شد. تقسیم مجدد...`);
-              for (const ovName of oversized) {
-                const ovPath = path.join(chunkDir, ovName);
-                const ovSize = fs.statSync(ovPath).size;
-                const ovDur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${ovPath}"`, {encoding:'utf8'}).trim());
-                // target half of the original, but ensure at least two pieces
-                const newSeg = Math.max(30, Math.floor(ovDur / 2));
-                // Remove original
-                fs.unlinkSync(ovPath);
-                const subDir = path.join(chunkDir, 'resplit_' + ovName.replace('.mp4',''));
+            const files = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
+            for (const fname of files) {
+              const fpath = path.join(chunkDir, fname);
+              const sz = fs.statSync(fpath).size;
+              if (sz > CHUNK_MAX) {
+                log(`⚠️ قطعه ${fname} هنوز ${(sz/(1024*1024)).toFixed(1)}MB است → تقسیم مجدد`);
+                const chunkDur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${fpath}"`, {encoding:'utf8'}).trim());
+                const half = Math.floor(chunkDur / 2);
+                const subDir = path.join(chunkDir, `sub_${Date.now()}_${Math.floor(Math.random()*10000)}`);
                 fs.mkdirSync(subDir, { recursive: true });
-                const subPattern = path.join(subDir, 'sub_%03d.mp4');
-                execSync(`ffmpeg -i "${ovPath}" -c copy -f segment -segment_time ${newSeg} -reset_timestamps 1 "${subPattern}"`, {stdio:'inherit', timeout:600000});
-                // Move resplit chunks to main chunkDir with unique names
+                execSync(`ffmpeg -i "${fpath}" -c copy -f segment -segment_time ${half} -reset_timestamps 1 "${subDir}/sub_%03d.mp4"`, {stdio:'inherit', timeout:600000});
                 const subChunks = fs.readdirSync(subDir).filter(f => f.endsWith('.mp4')).sort();
-                let idx = 0;
-                for (const sc of subChunks) {
-                  const newName = `part_${(parseInt(ovName.match(/\d+/)?.[0] || 0) * 10) + idx}_re.mp4`;
-                  fs.renameSync(path.join(subDir, sc), path.join(chunkDir, newName));
-                  idx++;
+                for (let i = 0; i < subChunks.length; i++) {
+                  const newName = `part_${parseInt(fname.match(/\d+/)[0]) * 100 + i}_r.mp4`;
+                  fs.renameSync(path.join(subDir, subChunks[i]), path.join(chunkDir, newName));
                 }
                 fs.rmSync(subDir, { recursive: true });
+                fs.unlinkSync(fpath);
               }
-              // Re-read chunks after re-split
-              chunks = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
             }
 
-            // Final safety: if still any chunk > 100MB, split it further by time
-            const finalCheck = () => {
-              let any = false;
-              for (const fname of chunks) {
-                const sz = fs.statSync(path.join(chunkDir, fname)).size;
-                if (sz > 100 * 1024 * 1024) {
-                  log(`🔥 قطعه ${fname} هنوز ${(sz/(1024*1024)).toFixed(1)}MB است. تقسیم اضطراری`);
-                  const ovPath = path.join(chunkDir, fname);
-                  const ovDur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${ovPath}"`, {encoding:'utf8'}).trim());
-                  const newSeg = Math.max(30, Math.floor(ovDur / 2));
-                  fs.unlinkSync(ovPath);
-                  const subDir = path.join(chunkDir, 'emergency_' + fname);
-                  fs.mkdirSync(subDir, { recursive: true });
-                  execSync(`ffmpeg -i "${ovPath}" -c copy -f segment -segment_time ${newSeg} -reset_timestamps 1 "${subDir}/e_%03d.mp4"`, {stdio:'inherit', timeout:600000});
-                  const subChunks = fs.readdirSync(subDir).filter(f => f.endsWith('.mp4')).sort();
-                  let idx = 0;
-                  for (const sc of subChunks) {
-                    const newName = `part_${(parseInt(fname.match(/\d+/)?.[0] || 0) * 10) + idx}_em.mp4`;
-                    fs.renameSync(path.join(subDir, sc), path.join(chunkDir, newName));
-                    idx++;
-                  }
-                  fs.rmSync(subDir, { recursive: true });
-                  any = true;
-                }
-              }
-              if (any) chunks = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
-              return any;
-            };
-
-            if (finalCheck()) finalCheck(); // one more pass if needed
-
-            return chunks.map(name => path.join(chunkDir, name));
+            const finalFiles = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
+            return finalFiles.map(f => path.join(chunkDir, f));
           }
 
           // ======================== مدیریت مخازن موقت ========================
@@ -706,7 +650,6 @@ jobs:
             if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
 
             for (const f of files) {
-              // f.localPath maybe absolute; copy to folder
               const dest = path.join(folderPath, f.fileName);
               fs.copyFileSync(f.localPath, dest);
             }
@@ -724,48 +667,31 @@ jobs:
             return links;
           }
 
-          // ======================== پردازش ویدیو و ارسال لینک‌ها ========================
+          // ======================== پردازش نهایی و ارسال لینک ========================
           async function processAndSendVideo(chatId, videoPath, baseName) {
             const timings = { start: Date.now(), downloadEnd: 0, splitEnd: 0, pushEnd: 0 };
-
             const totalSize = fs.statSync(videoPath).size;
             const totalMB = (totalSize / (1024*1024)).toFixed(1);
             log(`✂️ پردازش ویدیو ${baseName} (${totalMB}MB)`);
             await sendMessage(chatId, `📦 ویدیو ${totalMB}MB است. در حال آماده‌سازی قطعات...`);
 
             const videoId = 'vid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-            let files = [];
-
-            // split
             const chunkDir = `/tmp/chunks_${Date.now()}`;
             fs.mkdirSync(chunkDir, { recursive: true });
             const chunkPaths = splitVideoSafe(videoPath, chunkDir);
             timings.splitEnd = Date.now();
 
-            // Map chunk paths to file objects
-            files = chunkPaths.map(p => ({
-              localPath: p,
-              fileName: path.basename(p)
-            }));
-
-            // Push to GitHub
+            const files = chunkPaths.map(p => ({ localPath: p, fileName: path.basename(p) }));
             const links = await pushVideoToTempRepo(videoId, files, totalSize);
             timings.pushEnd = Date.now();
 
-            // Cleanup chunks
-            for (const f of files) {
-              try { fs.unlinkSync(f.localPath); } catch(_) {}
-            }
+            for (const f of files) { try { fs.unlinkSync(f.localPath); } catch(_) {} }
             try { fs.rmSync(chunkDir, { recursive: true }); } catch(_) {}
 
-            // Build message with links
             let msg = `🎬 ${baseName} آماده دانلود (حجم کل: ${totalMB}MB)\n\n📥 لینک‌های دانلود مستقیم (تا ۳ ساعت معتبر):\n\n`;
-            links.forEach((link, i) => {
-              msg += `${i+1}. ${link}\n`;
-            });
+            links.forEach((link, i) => { msg += `${i+1}. ${link}\n`; });
             msg += '\n⚠️ این لینک‌ها موقت هستند و پس از چند ساعت حذف می‌شوند. لطفاً سریع دانلود کنید.';
 
-            // Timing summary
             const downloadDur = timings.downloadEnd ? (timings.downloadEnd - timings.start) / 1000 : 0;
             const splitDur = (timings.splitEnd - (timings.downloadEnd || timings.start)) / 1000;
             const pushDur = (timings.pushEnd - timings.splitEnd) / 1000;
@@ -774,11 +700,10 @@ jobs:
 
             await sendMessage(chatId, msg);
             log(`📋 لینک‌ها برای ${baseName} ارسال شد. زمان کل: ${totalTime.toFixed(1)}s`);
-
             return timings;
           }
 
-          // ======================== آمار و صف ========================
+          // ======================== صف و آمار ========================
           function getAverageTime() {
             if (recentTimes.length === 0) return 90;
             return recentTimes.reduce((a,b)=>a+b, 0) / recentTimes.length;
@@ -853,7 +778,6 @@ jobs:
               let dlResult = null;
               for (let attempt = 0; attempt < MAX_PROXY_RETRIES; attempt++) {
                 if (attempt > 0) {
-                  log(`🔄 تلاش مجدد (${attempt+1}/${MAX_PROXY_RETRIES})...`);
                   await sendMessage(chatId, `🔄 تعویض پروکسی و تلاش مجدد (${attempt+1}/${MAX_PROXY_RETRIES})...`);
                   if (!(await switchToRandomProxy('تلاش مجدد دانلود'))) {
                     await sendMessage(chatId, '❌ هیچ پروکسی در دسترس نیست.');
@@ -891,9 +815,10 @@ jobs:
               const compatPath = await makeCompatible(videoPath);
               if (compatPath !== videoPath) { try { fs.unlinkSync(videoPath); } catch(_){}; videoPath = compatPath; }
 
-              const durationReal = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`, {encoding:'utf8'}).trim());
               finalSize = fs.statSync(videoPath).size;
               const finalMB = (finalSize/(1024*1024)).toFixed(1);
+
+              const durationReal = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`, {encoding:'utf8'}).trim());
 
               if (currentProxy) {
                 const pStats = proxyStats.get(currentProxy) || { speeds:[], failures:0, lastUsed: Date.now() };
@@ -1028,22 +953,15 @@ jobs:
           async function handleHelp(chatId) {
             const helpText = 
               'راهنمای ربات دانلود یوتیوب\n\n' +
-              '(1) یک ویدیو در یوتیوب پیدا کنید.\n' +
-              '(2) لینک کامل ویدیو را کپی کنید و در همین چت بفرستید.\n' +
-              '(3) ربات مدت ویدیو را بررسی می‌کند (حداکثر ۱.۵ ساعت) و در صورت تأیید، دانلود را شروع می‌کند.\n' +
-              '(4) در صورت شلوغ بودن، درخواست شما در صف قرار می‌گیرد و می‌توانید با دکمه «لغو درخواست» آن را کنسل کنید.\n' +
-              '(5) پس از دانلود، لینک‌های مستقیم قطعات ویدیو (حداکثر ۱۰۰ مگابایت) برای شما ارسال می‌شود. می‌توانید مستقیماً از سرور گیت‌هاب دانلود کنید.\n\n' +
-              '🔄 جبران خرابی:\n' +
-              'اگر دانلود برخی قطعات ناموفق باشد، دفعهٔ بعد ۲۰ نوبت در صف جلو می‌افتید.\n\n' +
-              'محدودیت‌ها:\n- هر ویدیو حداکثر ۱.۵ ساعت\n- هر کاربر مجموعاً ۱.۵ ساعت در این بازه (۶ ساعت)\n\n' +
-              'کانال رسمی ما در روبیکا:\nhttps://rubika.ir/joinc/EIJHJDBI0JVRYRXAUOPHHLSQFFKWQBCB\n\n' +
-              'با فرستادن لینک شروع کنید!';
+              '(1) لینک ویدیو را بفرستید.\n' +
+              '(2) ربات لینک‌های مستقیم (حداکثر ۱۰۰MB) را ارائه می‌دهد.\n' +
+              '⚠️ لینک‌ها موقت هستند و پس از حداکثر ۳ ساعت حذف می‌شوند.\n' +
+              'کانال رسمی: https://rubika.ir/joinc/EIJHJDBI0JVRYRXAUOPHHLSQFFKWQBCB';
             await sendMessage(chatId, helpText);
           }
 
           // ======================== اجرای اصلی ========================
           (async () => {
-            // 0. Clean orphan temp repos
             await deleteAllOrphanTempRepos();
 
             const me = await api('getMe');
@@ -1094,7 +1012,7 @@ jobs:
 
                   if (ADMIN_SECRET && text === ADMIN_SECRET) {
                     adminUsers.add(chatId);
-                    await sendMessage(chatId, '🔑 دسترسی ادمین فعال شد. محدودیت‌ها برداشته شد.');
+                    await sendMessage(chatId, '🔑 دسترسی ادمین فعال شد.');
                     continue;
                   }
 
@@ -1110,8 +1028,7 @@ jobs:
 
                   const info = await getRealVideoInfo(videoUrl);
                   if (info.error) {
-                    const errMsg = getErrorMessageFromStderr(info.stderr);
-                    await sendMessage(chatId, errMsg);
+                    await sendMessage(chatId, getErrorMessageFromStderr(info.stderr));
                     continue;
                   }
                   if (!info.duration) {
@@ -1120,18 +1037,17 @@ jobs:
                   }
 
                   const videoDuration = info.duration;
-                  const estimatedMB = info.size ? (info.size/(1024*1024)).toFixed(1) : 'نامشخص';
-                  log(`📺 اطلاعات ویدیو: ${Math.floor(videoDuration/60)}دقیقه, حجم ۴۸۰p: ${estimatedMB}MB`);
+                  log(`📺 اطلاعات ویدیو: ${Math.floor(videoDuration/60)}دقیقه`);
 
                   if (!adminUsers.has(chatId)) {
                     if (videoDuration > MAX_DURATION) {
-                      await sendMessage(chatId, `⚠️ مدت ویدیو (${Math.floor(videoDuration/60)} دقیقه) بیش از ۱.۵ ساعت مجاز است.`);
+                      await sendMessage(chatId, `⚠️ مدت ویدیو بیش از ۱.۵ ساعت مجاز نیست.`);
                       continue;
                     }
                     const used = userDailyUsage.get(chatId) || 0;
                     const remaining = DAILY_LIMIT - used;
                     if (videoDuration > remaining) {
-                      await sendMessage(chatId, `⚠️ شما امروز ${Math.floor(used/60)} دقیقه دانلود کرده‌اید. سهمیهٔ باقی‌مانده: ${Math.floor(remaining/60)} دقیقه.`);
+                      await sendMessage(chatId, `⚠️ سهمیهٔ شما تمام شده.`);
                       continue;
                     }
                   }
@@ -1147,7 +1063,6 @@ jobs:
             saveStatsToFile();
             gitPushAll();
 
-            // حذف مخازن موقت این چرخه
             log('🧹 حذف مخازن موقت این چرخه...');
             for (const repo of allTempRepos) {
               await deleteTempRepo(repo.fullName);
