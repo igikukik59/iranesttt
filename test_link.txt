@@ -1,5 +1,2 @@
-لینک تست مستقیم:
-https://github.com/igikukik59/iranesttt/releases/download/test-1778307561673/test_10mb.bin
-
-زمان: 2026-05-09T06:19:23.696Z
-حجم: 10MB
+❌ خطا:
+GitHub API (401): {"message":"Bad credentials","documentation_url":"https://docs.github.com/rest","status":"401"}
