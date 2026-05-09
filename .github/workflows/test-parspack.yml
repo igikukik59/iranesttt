@@ -1,4 +1,4 @@
-name: 🧪 تست مخزن موقت (با توکن مستقیم)
+name: 🧪 تست مخزن موقت (با لاگ کامل)
 
 on:
   workflow_dispatch:
@@ -6,133 +6,280 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     permissions:
       contents: write
-    env:
-      # توکن موقتی که خودت دادی - مستقیم توی کد Node استفاده می‌شه
-      PAT_TOKEN: "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"
     steps:
-      - name: 📥 دریافت ریپوی اصلی
+      - name: 📥 checkout ریپوی اصلی
         uses: actions/checkout@v4
 
-      - name: 🧪 تست مخزن موقت + لینک raw
+      - name: 🔬 تست کامل با دیباگ
         run: |
-          cat > test_temp_repo.cjs << 'ENDSCRIPT'
-          const { execSync } = require('child_process');
-          const fs = require('fs');
-          const path = require('path');
+          # ============================================================
+          # مرحله صفر: آماده‌سازی
+          # ============================================================
+          PAT="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"
 
-          // تنظیمات git (برای push به ریپوی اصلی)
-          execSync('git config --global user.name "github-actions[bot]"', {stdio:'pipe'});
-          execSync('git config --global user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
+          log() { echo "[$(date '+%H:%M:%S')] ℹ️ $1"; }
+          success() { echo "[$(date '+%H:%M:%S')] ✅ $1"; }
+          warn() { echo "[$(date '+%H:%M:%S')] ⚠️ $1"; }
+          error() { echo "[$(date '+%H:%M:%S')] ❌ $1"; }
 
-          const PAT = process.env.PAT_TOKEN;
-          if (!PAT) {
-            console.error('❌ PAT_TOKEN setting not found in env.');
-            process.exit(1);
-          }
-          console.log('🔑 استفاده از توکن موقت:', PAT.substring(0, 4) + '...' + PAT.slice(-4));
+          log "=============================================="
+          log "شروع تست با لاگ کامل"
+          log "=============================================="
 
-          function log(msg) { console.log(`[${new Date().toISOString().substring(0,19)}] ${msg}`); }
+          # ============================================================
+          # مرحله ۱: بررسی صحت توکن
+          # ============================================================
+          log "مرحله ۱: بررسی صحت توکن..."
 
-          // ===================== Api helper =====================
-          async function ghApi(url, options = {}) {
-            const res = await fetch(url, {
-              ...options,
-              headers: {
-                Authorization: `token ${PAT}`,
-                'Content-Type': 'application/json',
-                ...(options.headers || {})
-              }
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(`GitHub API (${res.status}): ${JSON.stringify(data)}`);
-            }
-            return data;
-          }
+          echo ""
+          log "--- تست اتصال به API (گرفتن اطلاعات کاربر) ---"
+          USER_RESPONSE=$(curl -s -o /tmp/user_response.txt -w "%{http_code}" \
+            -H "Authorization: token ${PAT}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/user 2>&1)
+          
+          echo ""
+          log "HTTP status: ${USER_RESPONSE}"
+          
+          if [ "${USER_RESPONSE}" = "200" ]; then
+            success "توکن معتبر است"
+            log "اطلاعات کاربر:"
+            cat /tmp/user_response.txt | grep -E '"login"|"name"|"email"' || true
+          elif [ "${USER_RESPONSE}" = "401" ]; then
+            error "توکن نامعتبر است یا منقضی شده"
+            log "پاسخ کامل سرور:"
+            cat /tmp/user_response.txt
+            exit 1
+          else
+            warn "کد وضعیت غیرمنتظره: ${USER_RESPONSE}"
+            log "پاسخ سرور:"
+            cat /tmp/user_response.txt
+          fi
 
-          // ===================== ساخت مخزن =====================
-          async function createRepo(name) {
-            log(`📦 ساختن مخزن ${name} ...`);
-            const data = await ghApi('https://api.github.com/user/repos', {
-              method: 'POST',
-              body: JSON.stringify({
-                name,
-                auto_init: false,
-                private: false,         // public => raw link works
-                description: 'مخزن موقت تست (ظرف یک ساعت حذف شود)'
-              })
-            });
-            log(`✅ مخزن ساخته شد: ${data.html_url}`);
-            return { cloneUrl: data.clone_url, fullName: data.full_name };
-          }
+          echo ""
+          log "--- بررسی scope های توکن ---"
+          SCOPE_RESPONSE=$(curl -s -D /tmp/scope_headers.txt -o /tmp/scope_body.txt \
+            -H "Authorization: token ${PAT}" \
+            https://api.github.com/user 2>&1)
+          
+          SCOPES=$(grep -i "x-oauth-scopes" /tmp/scope_headers.txt || echo "یافت نشد")
+          log "scope های توکن: ${SCOPES}"
 
-          (async () => {
-            // ۱. ساختن مخزن موقت
-            const repoName = `temp-test-${Date.now()}`;
-            const { cloneUrl, fullName } = await createRepo(repoName);
-            // fullName e.g., "igikukik59/temp-test-..."
+          # ============================================================
+          # مرحله ۲: ساخت مخزن موقت
+          # ============================================================
+          echo ""
+          log "=============================================="
+          log "مرحله ۲: ساخت مخزن موقت..."
+          
+          TIMESTAMP=$(date +%s)
+          RANDOM_ID=$((RANDOM % 9000 + 1000))
+          REPO_NAME="temp-test-${TIMESTAMP}-${RANDOM_ID}"
+          log "نام مخزن: ${REPO_NAME}"
 
-            // ۲. ساخت فایل تصادفی ۱۰MB
-            const tmpDir = '/tmp/temp-repo-test';
-            if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
-            fs.mkdirSync(tmpDir, { recursive: true });
-            const filePath = path.join(tmpDir, 'random_10mb.bin');
-            {
-              const sizeMB = 10;
-              const chunk = Buffer.allocUnsafe(1024 * 1024);
-              const fd = fs.openSync(filePath, 'w');
-              for (let written = 0; written < sizeMB * 1024 * 1024; written += chunk.length) {
-                for (let i = 0; i < chunk.length; i++) chunk[i] = Math.floor(Math.random() * 256);
-                fs.writeSync(fd, chunk, 0, Math.min(chunk.length, sizeMB * 1024 * 1024 - written));
-              }
-              fs.closeSync(fd);
-            }
-            log('📁 فایل ۱۰MB تصادفی ساخته شد.');
+          CREATE_RESPONSE=$(curl -s -o /tmp/create_response.txt -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: token ${PAT}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"${REPO_NAME}\",\"auto_init\":false,\"private\":false,\"description\":\"مخزن موقت تست\"}" \
+            https://api.github.com/user/repos 2>&1)
 
-            // ۳. Push به مخزن موقت
-            process.chdir(tmpDir);
-            execSync('git init', {stdio:'pipe'});
-            execSync('git checkout -b main', {stdio:'pipe'});
-            execSync('git add random_10mb.bin', {stdio:'pipe'});
-            execSync('git commit -m "فایل تست موقت"', {stdio:'pipe'});
+          log "HTTP status ساخت مخزن: ${CREATE_RESPONSE}"
+          log "پاسخ سرور:"
+          cat /tmp/create_response.txt
+          echo ""
 
-            // remote با توکن
-            const pushUrl = cloneUrl.replace('https://', `https://${PAT}@`);
-            execSync(`git remote add origin ${pushUrl}`, {stdio:'pipe'});
-            execSync('git push -u origin main', {stdio:'pipe'});
-            log('📤 فایل با موفقیت push شد.');
+          if [ "${CREATE_RESPONSE}" = "201" ]; then
+            success "مخزن با موفقیت ساخته شد"
+            REPO_FULL_NAME=$(grep -o '"full_name": "[^"]*"' /tmp/create_response.txt | head -1 | cut -d'"' -f4)
+            REPO_CLONE_URL=$(grep -o '"clone_url": "[^"]*"' /tmp/create_response.txt | head -1 | cut -d'"' -f4)
+            OWNER=$(echo "${REPO_FULL_NAME}" | cut -d'/' -f1)
+            log "full_name: ${REPO_FULL_NAME}"
+            log "owner: ${OWNER}"
+          elif [ "${CREATE_RESPONSE}" = "422" ]; then
+            warn "مخزن از قبل وجود دارد (تلاش مجدد با نام جدید)"
+            REPO_NAME="temp-test-${TIMESTAMP}-$((RANDOM % 9000 + 1000))"
+            log "تلاش با نام جدید: ${REPO_NAME}"
+            CREATE_RESPONSE=$(curl -s -o /tmp/create_response2.txt -w "%{http_code}" \
+              -X POST \
+              -H "Authorization: token ${PAT}" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"${REPO_NAME}\",\"auto_init\":false,\"private\":false}" \
+              https://api.github.com/user/repos 2>&1)
+            log "HTTP status تلاش دوم: ${CREATE_RESPONSE}"
+            cat /tmp/create_response2.txt
+            REPO_FULL_NAME=$(grep -o '"full_name": "[^"]*"' /tmp/create_response2.txt | head -1 | cut -d'"' -f4)
+            REPO_CLONE_URL=$(grep -o '"clone_url": "[^"]*"' /tmp/create_response2.txt | head -1 | cut -d'"' -f4)
+            OWNER=$(echo "${REPO_FULL_NAME}" | cut -d'/' -f1)
+          else
+            error "ساخت مخزن شکست خورد"
+            exit 1
+          fi
 
-            // ۴. ساخت لینک raw
-            const [owner] = fullName.split('/');
-            const rawLink = `https://raw.githubusercontent.com/${owner}/${repoName}/main/random_10mb.bin`;
-            log(`🔗 لینک مستقیم:\n${rawLink}`);
+          # ============================================================
+          # مرحله ۳: ساخت فایل تصادفی ۱۰MB
+          # ============================================================
+          echo ""
+          log "=============================================="
+          log "مرحله ۳: ساخت فایل تصادفی ۱۰MB..."
 
-            // ۵. ذخیره در ریپوی اصلی
-            const mainRepoDir = process.env.GITHUB_WORKSPACE; // جایی که checkout شده
-            process.chdir(mainRepoDir);
-            const resultText = `✅ تست موفق\nمخزن: ${fullName}\nزمان: ${new Date().toISOString()}\nلینک مستقیم:\n${rawLink}\n\n⚠️ مخزن موقت پس از تست دستی حذف شود.`;
-            fs.writeFileSync('test_link.txt', resultText);
-            execSync('git add test_link.txt', {stdio:'pipe'});
-            execSync('git commit -m "📎 ذخیره لینک raw تست (توکن مستقیم)"', {stdio:'pipe'});
-            execSync('git push', {stdio:'pipe'});
-            log('📤 فایل test_link.txt در ریپوی اصلی به‌روزرسانی شد.');
-            log('🎉 تمام! لینک بالاست. حالا در مرورگر ایران تستش کن.');
-          })().catch(err => {
-            console.error('❌ شکست:', err.message);
-            // باز هم فایل را با خطا می‌نویسیم
-            const mainRepoDir = process.env.GITHUB_WORKSPACE;
-            if (mainRepoDir) {
-              process.chdir(mainRepoDir);
-              fs.writeFileSync('test_link.txt', `❌ خطا:\n${err.message}`);
-              try {
-                execSync('git add test_link.txt && git commit -m "ثبت خطای تست" && git push', {stdio:'pipe'});
-              } catch(e) {}
-            }
-            process.exit(1);
-          });
-          ENDSCRIPT
+          dd if=/dev/urandom of=/tmp/random_10mb.bin bs=1M count=10 2>&1
+          FILE_SIZE=$(stat -c%s /tmp/random_10mb.bin 2>/dev/null || stat -f%z /tmp/random_10mb.bin 2>/dev/null)
+          ACTUAL_MB=$((FILE_SIZE / 1024 / 1024))
+          log "حجم فایل: ${FILE_SIZE} بایت (${ACTUAL_MB}MB)"
+          success "فایل تصادفی ساخته شد"
 
-          node test_temp_repo.cjs
+          # ============================================================
+          # مرحله ۴: راه‌اندازی مخزن محلی و push
+          # ============================================================
+          echo ""
+          log "=============================================="
+          log "مرحله ۴: push به مخزن موقت..."
+
+          TMP_DIR="/tmp/temp-repo-local"
+          rm -rf "${TMP_DIR}"
+          mkdir -p "${TMP_DIR}"
+          cd "${TMP_DIR}"
+
+          # راه‌اندازی git
+          git init
+          git checkout -b main
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # کپی فایل
+          cp /tmp/random_10mb.bin ./random_10mb.bin
+          git add random_10mb.bin
+          git commit -m "فایل تست ۱۰MB"
+
+          # push با توکن
+          PUSH_URL=$(echo "${REPO_CLONE_URL}" | sed "s|https://|https://${PAT}@|")
+          git remote add origin "${PUSH_URL}"
+          
+          log "در حال push..."
+          PUSH_OUTPUT=$(git push -u origin main 2>&1)
+          PUSH_EXIT=$?
+          
+          echo "${PUSH_OUTPUT}"
+          
+          if [ $PUSH_EXIT -eq 0 ]; then
+            success "push با موفقیت انجام شد"
+          else
+            error "push شکست خورد (exit code: ${PUSH_EXIT})"
+            log "خروجی کامل:"
+            echo "${PUSH_OUTPUT}"
+            exit 1
+          fi
+
+          # ============================================================
+          # مرحله ۵: ساخت لینک raw
+          # ============================================================
+          echo ""
+          log "=============================================="
+          log "مرحله ۵: ساخت لینک raw..."
+
+          RAW_LINK="https://raw.githubusercontent.com/${OWNER}/${REPO_NAME}/main/random_10mb.bin"
+          log "لینک raw: ${RAW_LINK}"
+
+          # ============================================================
+          # مرحله ۶: تست دانلود واقعی
+          # ============================================================
+          echo ""
+          log "=============================================="
+          log "مرحله ۶: تست دانلود از raw..."
+
+          log "--- تلاش با curl (بدون follow redirect) ---"
+          DOWNLOAD_TEST1=$(curl -s -o /dev/null -w "HTTP:%{http_code} Size:%{size_download} Time:%{time_total}s" \
+            --max-time 30 \
+            "${RAW_LINK}" 2>&1)
+          log "نتیجه: ${DOWNLOAD_TEST1}"
+
+          echo ""
+          log "--- تلاش با wget (با follow redirect) ---"
+          wget -q -O /tmp/download_test.bin --timeout=30 "${RAW_LINK}" 2>&1
+          WGET_EXIT=$?
+          if [ $WGET_EXIT -eq 0 ]; then
+            DOWNLOAD_SIZE=$(stat -c%s /tmp/download_test.bin 2>/dev/null)
+            success "دانلود موفقیت‌آمیز! حجم: ${DOWNLOAD_SIZE} بایت"
+            if [ "${DOWNLOAD_SIZE}" = "${FILE_SIZE}" ]; then
+              success "حجم فایل دانلودی با فایل اصلی یکسان است"
+            else
+              warn "اختلاف حجم: اصلی=${FILE_SIZE} دانلودی=${DOWNLOAD_SIZE}"
+            fi
+          else
+            log "wget exit code: ${WGET_EXIT}"
+            warn "دانلود با wget ممکن است شکست خورده باشد (در ایران باید تست دستی شود)"
+          fi
+
+          echo ""
+          log "--- تست با curl با follow redirect ---"
+          REDIRECT_TEST=$(curl -s -o /tmp/redirect_test.bin -w "HTTP:%{http_code} Size:%{size_download} Redirects:%{num_redirects} Time:%{time_total}s" \
+            -L --max-time 30 \
+            "${RAW_LINK}" 2>&1)
+          log "نتیجه: ${REDIRECT_TEST}"
+          REDIRECT_DOWNLOAD_SIZE=$(stat -c%s /tmp/redirect_test.bin 2>/dev/null || echo 0)
+          if [ "${REDIRECT_DOWNLOAD_SIZE}" -gt 0 ]; then
+            success "curl با redirect دانلود کرد: ${REDIRECT_DOWNLOAD_SIZE} بایت"
+          fi
+
+          # ============================================================
+          # مرحله ۷: ذخیره نتایج در ریپوی اصلی
+          # ============================================================
+          echo ""
+          log "=============================================="
+          log "مرحله ۷: ذخیره نتایج در ریپوی اصلی..."
+
+          cd /home/runner/work/iranesttt/iranesttt
+
+          cat > test_link.txt << ENDREPORT
+          ========================================
+          🧪 گزارش تست مخزن موقت
+          ========================================
+          زمان: $(date '+%Y-%m-%d %H:%M:%S')
+          
+          --- اطلاعات توکن ---
+          (4 کاراکتر اول): ${PAT:0:4}...
+          (4 کاراکتر آخر): ...${PAT: -4}
+          
+          --- اطلاعات مخزن ---
+          نام مخزن: ${REPO_NAME}
+          مسیر کامل: ${REPO_FULL_NAME}
+          owner: ${OWNER}
+          لینک clone: ${REPO_CLONE_URL}
+          
+          --- لینک raw (برای تست در ایران) ---
+          ${RAW_LINK}
+          
+          --- نتایج تست دانلود از سرور گیت‌هاب ---
+          تست curl (بدون redirect): ${DOWNLOAD_TEST1}
+          تست wget: exit code ${WGET_EXIT}, حجم: ${DOWNLOAD_SIZE:-ناموفق} بایت
+          تست curl (با redirect): ${REDIRECT_TEST}, حجم: ${REDIRECT_DOWNLOAD_SIZE} بایت
+          
+          --- راهنمای تست دستی در ایران ---
+          ۱. لینک بالا را در مرورگر خود باز کنید
+          ۲. اگر فایل ۱۰MB دانلود شد، یعنی raw در ایران کار می‌کند
+          ۳. اگر ERR_CONNECTION_RESET داد، یعنی raw فیلتر است
+          
+          ⚠️ مخزن موقت ${REPO_NAME} تا زمان حذف دستی باقی می‌ماند.
+          لطفاً بعد از تست از تنظیمات گیت‌هاب حذفش کنید.
+          ========================================
+          ENDREPORT
+
+          git add test_link.txt
+          git commit -m "📊 گزارش کامل تست مخزن موقت"
+          git push
+
+          echo ""
+          success "==========================================="
+          success "گزارش کامل در فایل test_link.txt ذخیره شد"
+          success "==========================================="
+          echo ""
+          log "لینک raw برای تست در ایران:"
+          echo ""
+          echo "    ${RAW_LINK}"
+          echo ""
+          log "مخزن موقت: https://github.com/${REPO_FULL_NAME}"
