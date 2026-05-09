@@ -1,4 +1,4 @@
-name: 🧪 تست لینک مستقیم گیت‌هاب (Release API)
+name: 🧪 تست مخزن موقت (با توکن مستقیم)
 
 on:
   workflow_dispatch:
@@ -6,109 +6,133 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     permissions:
       contents: write
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      # 👈 توکن رو می‌ریزیم توی env
+      # توکن موقتی که خودت دادی - مستقیم توی کد Node استفاده می‌شه
+      PAT_TOKEN: "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"
     steps:
-      - name: 📥 دریافت کد
+      - name: 📥 دریافت ریپوی اصلی
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🚀 اجرای تست
+      - name: 🧪 تست مخزن موقت + لینک raw
         run: |
-          cat > run_test.cjs << 'ENDSCRIPT'
+          cat > test_temp_repo.cjs << 'ENDSCRIPT'
           const { execSync } = require('child_process');
           const fs = require('fs');
+          const path = require('path');
 
-          // 🔧 تنظیم هویت git (اولین کار)
-          execSync('git config user.name "github-actions[bot]"', {stdio:'pipe'});
-          execSync('git config user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
+          // تنظیمات git (برای push به ریپوی اصلی)
+          execSync('git config --global user.name "github-actions[bot]"', {stdio:'pipe'});
+          execSync('git config --global user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
 
-          const TOKEN = process.env.GITHUB_TOKEN;
-          const REPO = process.env.GITHUB_REPOSITORY;
-          const SIZE_MB = 10;
-
-          if (!TOKEN) {
-            console.error('❌ توکن گیت‌هاب در env پیدا نشد.');
+          const PAT = process.env.PAT_TOKEN;
+          if (!PAT) {
+            console.error('❌ PAT_TOKEN setting not found in env.');
             process.exit(1);
           }
+          console.log('🔑 استفاده از توکن موقت:', PAT.substring(0, 4) + '...' + PAT.slice(-4));
 
-          function log(msg) {
-            console.log(`[${new Date().toISOString().substring(0,19)}] ${msg}`);
+          function log(msg) { console.log(`[${new Date().toISOString().substring(0,19)}] ${msg}`); }
+
+          // ===================== Api helper =====================
+          async function ghApi(url, options = {}) {
+            const res = await fetch(url, {
+              ...options,
+              headers: {
+                Authorization: `token ${PAT}`,
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+              }
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(`GitHub API (${res.status}): ${JSON.stringify(data)}`);
+            }
+            return data;
+          }
+
+          // ===================== ساخت مخزن =====================
+          async function createRepo(name) {
+            log(`📦 ساختن مخزن ${name} ...`);
+            const data = await ghApi('https://api.github.com/user/repos', {
+              method: 'POST',
+              body: JSON.stringify({
+                name,
+                auto_init: false,
+                private: false,         // public => raw link works
+                description: 'مخزن موقت تست (ظرف یک ساعت حذف شود)'
+              })
+            });
+            log(`✅ مخزن ساخته شد: ${data.html_url}`);
+            return { cloneUrl: data.clone_url, fullName: data.full_name };
           }
 
           (async () => {
-            const [owner, repo] = REPO.split('/');
+            // ۱. ساختن مخزن موقت
+            const repoName = `temp-test-${Date.now()}`;
+            const { cloneUrl, fullName } = await createRepo(repoName);
+            // fullName e.g., "igikukik59/temp-test-..."
 
-            // ۱. ساخت فایل تصادفی ۱۰MB
-            log(`ساخت فایل تصادفی ${SIZE_MB}MB...`);
-            const filePath = '/tmp/test_10mb.bin';
+            // ۲. ساخت فایل تصادفی ۱۰MB
+            const tmpDir = '/tmp/temp-repo-test';
+            if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true });
+            fs.mkdirSync(tmpDir, { recursive: true });
+            const filePath = path.join(tmpDir, 'random_10mb.bin');
             {
+              const sizeMB = 10;
               const chunk = Buffer.allocUnsafe(1024 * 1024);
               const fd = fs.openSync(filePath, 'w');
-              for (let written = 0; written < SIZE_MB * 1024 * 1024; written += chunk.length) {
+              for (let written = 0; written < sizeMB * 1024 * 1024; written += chunk.length) {
                 for (let i = 0; i < chunk.length; i++) chunk[i] = Math.floor(Math.random() * 256);
-                fs.writeSync(fd, chunk, 0, Math.min(chunk.length, SIZE_MB * 1024 * 1024 - written));
+                fs.writeSync(fd, chunk, 0, Math.min(chunk.length, sizeMB * 1024 * 1024 - written));
               }
               fs.closeSync(fd);
             }
+            log('📁 فایل ۱۰MB تصادفی ساخته شد.');
 
-            // ۲. ایجاد Release
-            const tag = `test-${Date.now()}`;
-            log(`درخواست Release جدید با tag=${tag}...`);
-            const rel = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {
-              method: 'POST',
-              headers: {
-                Authorization: `token ${TOKEN}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                tag_name: tag,
-                name: 'تست لینک مستقیم',
-                draft: false,
-                prerelease: true
-              })
-            }).then(r => r.json());
-            if (!rel.upload_url) throw new Error(`ساخت Release شکست: ${JSON.stringify(rel)}`);
-            const uploadUrl = rel.upload_url.replace('{?name,label}', '');
-            log('✅ Release ساخته شد.');
+            // ۳. Push به مخزن موقت
+            process.chdir(tmpDir);
+            execSync('git init', {stdio:'pipe'});
+            execSync('git checkout -b main', {stdio:'pipe'});
+            execSync('git add random_10mb.bin', {stdio:'pipe'});
+            execSync('git commit -m "فایل تست موقت"', {stdio:'pipe'});
 
-            // ۳. آپلود فایل به Release
-            log('📤 آپلود asset...');
-            const buf = fs.readFileSync(filePath);
-            const asset = await fetch(`${uploadUrl}?name=test_10mb.bin`, {
-              method: 'POST',
-              headers: {
-                Authorization: `token ${TOKEN}`,
-                'Content-Type': 'application/octet-stream'
-              },
-              body: buf
-            }).then(r => r.json());
-            if (!asset.browser_download_url) throw new Error(`آپلود ناموفق: ${JSON.stringify(asset)}`);
+            // remote با توکن
+            const pushUrl = cloneUrl.replace('https://', `https://${PAT}@`);
+            execSync(`git remote add origin ${pushUrl}`, {stdio:'pipe'});
+            execSync('git push -u origin main', {stdio:'pipe'});
+            log('📤 فایل با موفقیت push شد.');
 
-            const downloadUrl = asset.browser_download_url;
-            log(`🎉 موفق! لینک مستقیم:\n${downloadUrl}`);
+            // ۴. ساخت لینک raw
+            const [owner] = fullName.split('/');
+            const rawLink = `https://raw.githubusercontent.com/${owner}/${repoName}/main/random_10mb.bin`;
+            log(`🔗 لینک مستقیم:\n${rawLink}`);
 
-            // ۴. ذخیره لینک در ریپو
-            const output = `لینک تست مستقیم:\n${downloadUrl}\n\nزمان: ${new Date().toISOString()}\nحجم: ${SIZE_MB}MB\n`;
-            fs.writeFileSync('test_link.txt', output);
+            // ۵. ذخیره در ریپوی اصلی
+            const mainRepoDir = process.env.GITHUB_WORKSPACE; // جایی که checkout شده
+            process.chdir(mainRepoDir);
+            const resultText = `✅ تست موفق\nمخزن: ${fullName}\nزمان: ${new Date().toISOString()}\nلینک مستقیم:\n${rawLink}\n\n⚠️ مخزن موقت پس از تست دستی حذف شود.`;
+            fs.writeFileSync('test_link.txt', resultText);
             execSync('git add test_link.txt', {stdio:'pipe'});
-            execSync('git commit -m "📎 ذخیره لینک تست مستقیم"', {stdio:'pipe'});
+            execSync('git commit -m "📎 ذخیره لینک raw تست (توکن مستقیم)"', {stdio:'pipe'});
             execSync('git push', {stdio:'pipe'});
-            log('📤 فایل test_link.txt در ریپو ذخیره شد. آن را باز کن و لینک را تست کن.');
+            log('📤 فایل test_link.txt در ریپوی اصلی به‌روزرسانی شد.');
+            log('🎉 تمام! لینک بالاست. حالا در مرورگر ایران تستش کن.');
           })().catch(err => {
-            console.error('❌ خطا:', err.message);
-            // در صورت خطا هم فایل را با پیام خطا می‌سازیم
-            const errorMsg = `❌ خطا در تست:\n${err.message}\nزمان: ${new Date().toISOString()}`;
-            fs.writeFileSync('test_link.txt', errorMsg);
-            try {
-              execSync('git add test_link.txt && git commit -m "ثبت خطای تست" && git push', {stdio:'pipe'});
-            } catch(e) {}
+            console.error('❌ شکست:', err.message);
+            // باز هم فایل را با خطا می‌نویسیم
+            const mainRepoDir = process.env.GITHUB_WORKSPACE;
+            if (mainRepoDir) {
+              process.chdir(mainRepoDir);
+              fs.writeFileSync('test_link.txt', `❌ خطا:\n${err.message}`);
+              try {
+                execSync('git add test_link.txt && git commit -m "ثبت خطای تست" && git push', {stdio:'pipe'});
+              } catch(e) {}
+            }
             process.exit(1);
           });
           ENDSCRIPT
 
-          node run_test.cjs
+          node test_temp_repo.cjs
