@@ -151,6 +151,8 @@ jobs:
           execSync('git config --global user.name "github-actions[bot]"', {stdio:'pipe'});
           execSync('git config --global user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
 
+          // ذخیره مسیر اصلی workspace برای دسترسی به xray
+          const WORKDIR = process.cwd();
           const PROXY_FILE = 'کانفیگ های خوب.txt';
           const COOKIE_FILE = '/tmp/youtube_cookies.txt';
           const LOG_FILE = 'bot_log.txt';
@@ -161,20 +163,19 @@ jobs:
           if (!TOKEN) { console.error('❌ TOKEN تنظیم نشده'); process.exit(1); }
           if (!PAT_TOKEN) { console.error('❌ PAT_TOKEN تنظیم نشده'); process.exit(1); }
 
-          const MAX_DURATION = 5400;          // 1.5 hours in seconds
+          const MAX_DURATION = 5400;          // 1.5 hours
           const DAILY_LIMIT = 5400;           // per user per cycle
           const MAX_PROXY_RETRIES = 3;
           const MAX_QUEUE = 200;
           const MIN_SPEED_BYTES = 1 * 1024 * 1024;   // 1 MB/s
           const SMALL_FILE_BYTES = 10 * 1024 * 1024;  // 10 MB
-          const CHUNK_SIZE = 90 * 1024 * 1024;        // 90 MB per chunk
-          const MAX_REPO_SIZE = 9 * 1024 * 1024 * 1024; // 9 GB max repo size
+          const CHUNK_SIZE = 80 * 1024 * 1024;        // target 80 MB per chunk (safe under 100)
+          const MAX_REPO_SIZE = 9 * 1024 * 1024 * 1024; // 9 GB
 
-          // ======================== state ========================
           let proxies = [];
           const queue = [];
           let isProcessing = false;
-          const recentTimes = [];         // total processing times per video
+          const recentTimes = [];
           let currentProxy = null;
           let xrayProc = null;
           let consecutiveSuccess = 0;
@@ -186,10 +187,10 @@ jobs:
           const priorityCredits = new Map();
 
           // temp repo management
-          let currentTempRepo = null;     // { owner, repo, fullName, cloneUrl }
+          let currentTempRepo = null;
           let currentLocalRepoPath = '/tmp/current-temp-repo';
-          let currentRepoPushedSize = 0;  // bytes pushed to current repo
-          const allTempRepos = [];        // [{ fullName, cloneUrl }]
+          let currentRepoPushedSize = 0;
+          const allTempRepos = [];   // [{ fullName, cloneUrl }]
 
           function ts() { return new Date().toISOString().replace('T',' ').substring(0,19); }
           function log(...args) {
@@ -215,13 +216,11 @@ jobs:
               }
             });
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              throw new Error(`GitHub API (${res.status}): ${JSON.stringify(data)}`);
-            }
+            if (!res.ok) throw new Error(`GitHub API (${res.status}): ${JSON.stringify(data)}`);
             return data;
           }
 
-          // ======================== Xray ========================
+          // ======================== Xray (using WORKDIR) ========================
           function parseURI(uri) {
             try {
               const u = new URL(uri);
@@ -257,7 +256,7 @@ jobs:
             const config = generateXrayConfig(uri); if (!config) return null;
             const cfgPath = `/tmp/xray_${idx}.json`;
             fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2));
-            const proc = spawn(path.join(process.cwd(), 'xray', 'xray'), ['run', '-config', cfgPath], { stdio: 'pipe' });
+            const proc = spawn(path.join(WORKDIR, 'xray', 'xray'), ['run', '-config', cfgPath], { stdio: 'pipe' });
             await sleep(1500);
             return proc;
           }
@@ -527,11 +526,105 @@ jobs:
             return out;
           }
 
+          // ======================== تقسیم هوشمند (تضمین زیر ۱۰۰MB) ========================
+          function splitVideoSafe(inputPath, chunkDir) {
+            // returns array of chunk file paths (already moved to chunkDir)
+            const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim());
+            const br = parseFloat(execSync(`ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim());
+            const fileSize = fs.statSync(inputPath).size;
+
+            // If file is already small enough, just copy it
+            if (fileSize <= CHUNK_SIZE) {
+              const dest = path.join(chunkDir, 'part_000.mp4');
+              fs.copyFileSync(inputPath, dest);
+              return [dest];
+            }
+
+            // Estimate segment time for ~80MB chunks
+            let segTime = Math.floor((CHUNK_SIZE * 8) / br);
+            segTime = Math.min(1800, Math.max(30, segTime));
+            log(`🎯 تقسیم اولیه: bitrate ${(br/1000).toFixed(0)}kbps, قطعه‌های ${segTime}s`);
+
+            const pattern = path.join(chunkDir, 'part_%03d.mp4');
+            execSync(`ffmpeg -i "${inputPath}" -c copy -f segment -segment_time ${segTime} -reset_timestamps 1 "${pattern}"`, {stdio:'inherit', timeout:600000});
+
+            let chunks = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
+            // Check each chunk size
+            let oversized = [];
+            for (const fname of chunks) {
+              const sz = fs.statSync(path.join(chunkDir, fname)).size;
+              if (sz > 95 * 1024 * 1024) {
+                oversized.push(fname);
+              }
+            }
+
+            // If any chunk too large, re-split those with half segment time
+            if (oversized.length > 0) {
+              log(`⚠️ ${oversized.length} قطعه بالای ۹۵MB پیدا شد. تقسیم مجدد...`);
+              for (const ovName of oversized) {
+                const ovPath = path.join(chunkDir, ovName);
+                const ovSize = fs.statSync(ovPath).size;
+                const ovDur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${ovPath}"`, {encoding:'utf8'}).trim());
+                // target half of the original, but ensure at least two pieces
+                const newSeg = Math.max(30, Math.floor(ovDur / 2));
+                // Remove original
+                fs.unlinkSync(ovPath);
+                const subDir = path.join(chunkDir, 'resplit_' + ovName.replace('.mp4',''));
+                fs.mkdirSync(subDir, { recursive: true });
+                const subPattern = path.join(subDir, 'sub_%03d.mp4');
+                execSync(`ffmpeg -i "${ovPath}" -c copy -f segment -segment_time ${newSeg} -reset_timestamps 1 "${subPattern}"`, {stdio:'inherit', timeout:600000});
+                // Move resplit chunks to main chunkDir with unique names
+                const subChunks = fs.readdirSync(subDir).filter(f => f.endsWith('.mp4')).sort();
+                let idx = 0;
+                for (const sc of subChunks) {
+                  const newName = `part_${(parseInt(ovName.match(/\d+/)?.[0] || 0) * 10) + idx}_re.mp4`;
+                  fs.renameSync(path.join(subDir, sc), path.join(chunkDir, newName));
+                  idx++;
+                }
+                fs.rmSync(subDir, { recursive: true });
+              }
+              // Re-read chunks after re-split
+              chunks = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
+            }
+
+            // Final safety: if still any chunk > 100MB, split it further by time
+            const finalCheck = () => {
+              let any = false;
+              for (const fname of chunks) {
+                const sz = fs.statSync(path.join(chunkDir, fname)).size;
+                if (sz > 100 * 1024 * 1024) {
+                  log(`🔥 قطعه ${fname} هنوز ${(sz/(1024*1024)).toFixed(1)}MB است. تقسیم اضطراری`);
+                  const ovPath = path.join(chunkDir, fname);
+                  const ovDur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${ovPath}"`, {encoding:'utf8'}).trim());
+                  const newSeg = Math.max(30, Math.floor(ovDur / 2));
+                  fs.unlinkSync(ovPath);
+                  const subDir = path.join(chunkDir, 'emergency_' + fname);
+                  fs.mkdirSync(subDir, { recursive: true });
+                  execSync(`ffmpeg -i "${ovPath}" -c copy -f segment -segment_time ${newSeg} -reset_timestamps 1 "${subDir}/e_%03d.mp4"`, {stdio:'inherit', timeout:600000});
+                  const subChunks = fs.readdirSync(subDir).filter(f => f.endsWith('.mp4')).sort();
+                  let idx = 0;
+                  for (const sc of subChunks) {
+                    const newName = `part_${(parseInt(fname.match(/\d+/)?.[0] || 0) * 10) + idx}_em.mp4`;
+                    fs.renameSync(path.join(subDir, sc), path.join(chunkDir, newName));
+                    idx++;
+                  }
+                  fs.rmSync(subDir, { recursive: true });
+                  any = true;
+                }
+              }
+              if (any) chunks = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
+              return any;
+            };
+
+            if (finalCheck()) finalCheck(); // one more pass if needed
+
+            return chunks.map(name => path.join(chunkDir, name));
+          }
+
           // ======================== مدیریت مخازن موقت ========================
           async function deleteAllOrphanTempRepos() {
             log('🔍 جستجوی مخازن موقت باقی‌مانده از دوره‌های قبل...');
             try {
-              // دریافت لیست مخازن کاربر
               const repos = await ghApi('https://api.github.com/user/repos?per_page=100');
               const orphanRepos = repos.filter(r => r.name.startsWith('yt-temp-'));
               log(`📋 ${orphanRepos.length} مخزن موقت باقی‌مانده پیدا شد.`);
@@ -599,7 +692,6 @@ jobs:
             }
           }
 
-          // Push video files to temp repo, returns raw links
           async function pushVideoToTempRepo(videoId, files, totalSize) {
             if (currentRepoPushedSize + totalSize > MAX_REPO_SIZE) {
               log(`🔄 مخزن فعلی پر شد (${(currentRepoPushedSize/(1024*1024*1024)).toFixed(1)}GB)، ساخت مخزن جدید`);
@@ -614,7 +706,9 @@ jobs:
             if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
 
             for (const f of files) {
-              fs.copyFileSync(f.localPath, path.join(folderPath, f.fileName));
+              // f.localPath maybe absolute; copy to folder
+              const dest = path.join(folderPath, f.fileName);
+              fs.copyFileSync(f.localPath, dest);
             }
 
             process.chdir(currentLocalRepoPath);
@@ -632,15 +726,9 @@ jobs:
 
           // ======================== پردازش ویدیو و ارسال لینک‌ها ========================
           async function processAndSendVideo(chatId, videoPath, baseName) {
-            const timings = {
-              start: Date.now(),
-              downloadEnd: 0,
-              splitEnd: 0,
-              pushEnd: 0
-            };
+            const timings = { start: Date.now(), downloadEnd: 0, splitEnd: 0, pushEnd: 0 };
 
-            const stats = fs.statSync(videoPath);
-            const totalSize = stats.size;
+            const totalSize = fs.statSync(videoPath).size;
             const totalMB = (totalSize / (1024*1024)).toFixed(1);
             log(`✂️ پردازش ویدیو ${baseName} (${totalMB}MB)`);
             await sendMessage(chatId, `📦 ویدیو ${totalMB}MB است. در حال آماده‌سازی قطعات...`);
@@ -648,58 +736,36 @@ jobs:
             const videoId = 'vid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
             let files = [];
 
-            if (totalSize <= CHUNK_SIZE) {
-              // فایل کوچک، بدون تقسیم
-              files = [{ localPath: videoPath, fileName: `${baseName}.mp4` }];
-            } else {
-              // تقسیم بر اساس زمان (با استفاده از bitrate) برای قطعات حدود 90MB
-              const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`, {encoding:'utf8'}).trim());
-              const br = parseFloat(execSync(`ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "${videoPath}"`, {encoding:'utf8'}).trim());
-              const targetBytes = CHUNK_SIZE;
-              let segTime = Math.floor((targetBytes * 8) / br);
-              segTime = Math.min(1800, Math.max(30, segTime)); // clamp between 30s and 30min
-              log(`🎯 تقسیم: bitrate ${(br/1000).toFixed(0)}kbps, قطعه‌های ${segTime} ثانیه‌ای`);
-
-              const chunkDir = `/tmp/chunks_${Date.now()}`;
-              fs.mkdirSync(chunkDir, { recursive: true });
-              const pattern = path.join(chunkDir, 'part_%03d.mp4');
-              execSync(`ffmpeg -i "${videoPath}" -c copy -f segment -segment_time ${segTime} -reset_timestamps 1 "${pattern}"`, {stdio:'inherit', timeout:600000});
-
-              const chunkNames = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
-              if (chunkNames.length === 0) {
-                fs.rmSync(chunkDir, { recursive: true });
-                throw new Error('تقسیم ویدیو شکست خورد');
-              }
-              files = chunkNames.map(name => ({
-                localPath: path.join(chunkDir, name),
-                fileName: name
-              }));
-              // splitEnd will be recorded after FFmpeg
-            }
-
+            // split
+            const chunkDir = `/tmp/chunks_${Date.now()}`;
+            fs.mkdirSync(chunkDir, { recursive: true });
+            const chunkPaths = splitVideoSafe(videoPath, chunkDir);
             timings.splitEnd = Date.now();
+
+            // Map chunk paths to file objects
+            files = chunkPaths.map(p => ({
+              localPath: p,
+              fileName: path.basename(p)
+            }));
 
             // Push to GitHub
             const links = await pushVideoToTempRepo(videoId, files, totalSize);
             timings.pushEnd = Date.now();
 
-            // Cleanup chunks if any
+            // Cleanup chunks
             for (const f of files) {
-              try { if (f.localPath !== videoPath) fs.unlinkSync(f.localPath); } catch(_) {}
+              try { fs.unlinkSync(f.localPath); } catch(_) {}
             }
-            if (files.length > 1) {
-              // remove chunk directory
-              try { fs.rmSync(path.dirname(files[0].localPath), { recursive: true }); } catch(_) {}
-            }
+            try { fs.rmSync(chunkDir, { recursive: true }); } catch(_) {}
 
-            // Build message
+            // Build message with links
             let msg = `🎬 ${baseName} آماده دانلود (حجم کل: ${totalMB}MB)\n\n📥 لینک‌های دانلود مستقیم (تا ۳ ساعت معتبر):\n\n`;
             links.forEach((link, i) => {
               msg += `${i+1}. ${link}\n`;
             });
             msg += '\n⚠️ این لینک‌ها موقت هستند و پس از چند ساعت حذف می‌شوند. لطفاً سریع دانلود کنید.';
 
-            // Add timing summary
+            // Timing summary
             const downloadDur = timings.downloadEnd ? (timings.downloadEnd - timings.start) / 1000 : 0;
             const splitDur = (timings.splitEnd - (timings.downloadEnd || timings.start)) / 1000;
             const pushDur = (timings.pushEnd - timings.splitEnd) / 1000;
@@ -846,7 +912,6 @@ jobs:
               await sendMessage(chatId, `✅ دانلود شد | حجم: ${finalMB}MB | زمان: ${dlTime}s`);
               const baseName = path.basename(videoPath, path.extname(videoPath));
 
-              // processAndSendVideo returns its own timings; we can merge
               const splitTimings = await processAndSendVideo(chatId, videoPath, baseName);
               timings.splitEnd = splitTimings.splitEnd;
               timings.pushEnd = splitTimings.pushEnd;
@@ -967,7 +1032,7 @@ jobs:
               '(2) لینک کامل ویدیو را کپی کنید و در همین چت بفرستید.\n' +
               '(3) ربات مدت ویدیو را بررسی می‌کند (حداکثر ۱.۵ ساعت) و در صورت تأیید، دانلود را شروع می‌کند.\n' +
               '(4) در صورت شلوغ بودن، درخواست شما در صف قرار می‌گیرد و می‌توانید با دکمه «لغو درخواست» آن را کنسل کنید.\n' +
-              '(5) پس از دانلود، لینک‌های مستقیم قطعات ویدیو (۹۰ مگابایتی) برای شما ارسال می‌شود. می‌توانید مستقیماً از سرور گیت‌هاب دانلود کنید.\n\n' +
+              '(5) پس از دانلود، لینک‌های مستقیم قطعات ویدیو (حداکثر ۱۰۰ مگابایت) برای شما ارسال می‌شود. می‌توانید مستقیماً از سرور گیت‌هاب دانلود کنید.\n\n' +
               '🔄 جبران خرابی:\n' +
               'اگر دانلود برخی قطعات ناموفق باشد، دفعهٔ بعد ۲۰ نوبت در صف جلو می‌افتید.\n\n' +
               'محدودیت‌ها:\n- هر ویدیو حداکثر ۱.۵ ساعت\n- هر کاربر مجموعاً ۱.۵ ساعت در این بازه (۶ ساعت)\n\n' +
@@ -978,7 +1043,7 @@ jobs:
 
           // ======================== اجرای اصلی ========================
           (async () => {
-            // 0. Clean orphan temp repos first
+            // 0. Clean orphan temp repos
             await deleteAllOrphanTempRepos();
 
             const me = await api('getMe');
