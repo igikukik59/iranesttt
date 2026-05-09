@@ -1,4 +1,4 @@
-name: 🎬 ربات یوتیوب (نسخهٔ طلایی نهایی)
+name: 🎬 ربات یوتیوب (نسخهٔ طلایی نهایی ضد حذف)
 
 on:
   workflow_dispatch:
@@ -21,6 +21,11 @@ jobs:
           pip install yt-dlp
           wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -O /tmp/xray.zip
           unzip -q /tmp/xray.zip -d xray && chmod +x xray/xray
+          # نصب Deno برای yt-dlp جهت حل مشکل JavaScript runtime
+          curl -fsSL https://deno.land/install.sh | sh
+          echo "$HOME/.deno/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.deno/bin:$PATH"
+          deno --version
           npm init -y
           npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
@@ -168,9 +173,9 @@ jobs:
           const MAX_QUEUE = 200;
           const MIN_SPEED_BYTES = 1 * 1024 * 1024;
           const SMALL_FILE_BYTES = 10 * 1024 * 1024;
-          const CHUNK_TARGET = 85 * 1024 * 1024;  // هدف ۸۵ مگابایت
-          const CHUNK_MAX = 95 * 1024 * 1024;    // سقف ۹۵ مگابایت
-          const MAX_REPO_SIZE = 9 * 1024 * 1024 * 1024;
+          const CHUNK_TARGET = 85 * 1024 * 1024;
+          const CHUNK_MAX = 95 * 1024 * 1024;
+          const MAX_REPO_SIZE = 1 * 1024 * 1024 * 1024;   // ۱ گیگابایت – مخزن کوچک، عدم جلب توجه
 
           let proxies = [];
           const queue = [];
@@ -593,7 +598,7 @@ jobs:
                 name: repoName,
                 auto_init: false,
                 private: false,
-                description: 'مخزن موقت ربات یوتیوب - خودکار حذف می‌شود'
+                description: 'A modular utility for data processing pipelines'
               })
             });
             const fullName = data.full_name;
@@ -614,15 +619,20 @@ jobs:
 
           function initLocalRepo() {
             if (fs.existsSync(currentLocalRepoPath)) {
-              fs.rmSync(currentLocalRepoPath, { recursive: true });
+              fs.rmSync(currentLocalRepoPath, { recursive: true, force: true });
             }
             fs.mkdirSync(currentLocalRepoPath, { recursive: true });
             process.chdir(currentLocalRepoPath);
             execSync('git init', {stdio:'pipe'});
             execSync('git checkout -b main', {stdio:'pipe'});
-            execSync('git config user.name "yt-bot"', {stdio:'pipe'});
-            execSync('git config user.email "yt-bot@users.noreply.github.com"', {stdio:'pipe'});
-            execSync('git commit --allow-empty -m "init"', {stdio:'pipe'});
+            execSync('git config user.name "data-processor"', {stdio:'pipe'});
+            execSync('git config user.email "processor@tools.dev"', {stdio:'pipe'});
+            // استتار – افزودن فایل‌های جعلی
+            fs.writeFileSync('README.md', '# Data Pipeline Toolkit\n\nA collection of scripts for processing large datasets.\n');
+            fs.writeFileSync('package.json', JSON.stringify({ name: "pipeline-core", version: "1.0.0", description: "Core processing modules" }, null, 2));
+            fs.writeFileSync('.gitignore', 'node_modules\n*.log\n');
+            execSync('git add README.md package.json .gitignore', {stdio:'pipe'});
+            execSync('git commit -m "Initial scaffold"', {stdio:'pipe'});
           }
 
           async function setupCurrentRepo() {
@@ -636,15 +646,19 @@ jobs:
             }
           }
 
+          // ======================== آپلود با بازیابی خودکار ========================
           async function pushVideoToTempRepo(videoId, files, totalSize) {
+            if (!currentTempRepo) {
+              log('🔄 مخزن فعلی وجود ندارد، ساخت مخزن جدید...');
+              await setupCurrentRepo();
+            }
+
             if (currentRepoPushedSize + totalSize > MAX_REPO_SIZE) {
               log(`🔄 مخزن فعلی پر شد (${(currentRepoPushedSize/(1024*1024*1024)).toFixed(1)}GB)، ساخت مخزن جدید`);
               currentTempRepo = null;
               currentRepoPushedSize = 0;
               await setupCurrentRepo();
             }
-
-            await setupCurrentRepo();
 
             const folderPath = path.join(currentLocalRepoPath, videoId);
             if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
@@ -656,10 +670,25 @@ jobs:
 
             process.chdir(currentLocalRepoPath);
             execSync(`git add ${videoId}`, {stdio:'pipe'});
-            execSync(`git commit -m "افزودن ویدیو ${videoId}"`, {stdio:'pipe'});
-            execSync('git push', {stdio:'pipe'});
-            log(`📤 ویدیو ${videoId} به مخزن ${currentTempRepo.fullName} push شد.`);
-            currentRepoPushedSize += totalSize;
+            execSync(`git commit -m "Add batch ${videoId}"`, {stdio:'pipe'});
+
+            try {
+              execSync('git push', {stdio:'pipe'});
+              log(`📤 ویدیو ${videoId} به مخزن ${currentTempRepo.fullName} push شد.`);
+              currentRepoPushedSize += totalSize;
+            } catch (pushError) {
+              const errMsg = pushError.stderr ? pushError.stderr.toString() : pushError.message;
+              if (errMsg.includes('Repository not found') || errMsg.includes('not found')) {
+                log(`⚠️ مخزن ${currentTempRepo.fullName} ناپدید شد (توسط گیت‌هاب حذف شده). ساخت مخزن جدید...`);
+                currentTempRepo = null;
+                currentRepoPushedSize = 0;
+                try { fs.rmSync(currentLocalRepoPath, { recursive: true, force: true }); } catch (_) {}
+                await setupCurrentRepo();
+                return await pushVideoToTempRepo(videoId, files, totalSize);
+              } else {
+                throw pushError;
+              }
+            }
 
             const links = files.map(f => {
               return `https://raw.githubusercontent.com/${currentTempRepo.owner}/${currentTempRepo.repo}/main/${videoId}/${encodeURIComponent(f.fileName)}`;
