@@ -1,45 +1,51 @@
-name: 🧪 تست آپلود مستقیم و ثبت لینک
+name: 🧪 تست لینک مستقیم گیت‌هاب (Release API)
 
 on:
   workflow_dispatch:
 
 jobs:
-  test_and_record:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
     permissions:
       contents: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      # 👈 توکن رو می‌ریزیم توی env
     steps:
       - name: 📥 دریافت کد
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}   # برای پوش کردن فایل
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🚀 اجرای تست و ثبت نتیجه
+      - name: 🚀 اجرای تست
         run: |
           cat > run_test.cjs << 'ENDSCRIPT'
           const { execSync } = require('child_process');
           const fs = require('fs');
 
+          // 🔧 تنظیم هویت git (اولین کار)
+          execSync('git config user.name "github-actions[bot]"', {stdio:'pipe'});
+          execSync('git config user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
+
           const TOKEN = process.env.GITHUB_TOKEN;
           const REPO = process.env.GITHUB_REPOSITORY;
           const SIZE_MB = 10;
 
-          function log(msg) { console.log(`[${new Date().toISOString().substr(0,19)}] ${msg}`); }
+          if (!TOKEN) {
+            console.error('❌ توکن گیت‌هاب در env پیدا نشد.');
+            process.exit(1);
+          }
 
-          // ================ تابع اصلی ================
+          function log(msg) {
+            console.log(`[${new Date().toISOString().substring(0,19)}] ${msg}`);
+          }
+
           (async () => {
             const [owner, repo] = REPO.split('/');
-            const api = async (url, opts = {}) => {
-              const hdrs = { Authorization: `token ${TOKEN}`, Accept: 'application/vnd.github.v3+json', ...opts.headers };
-              const res = await fetch(url, { ...opts, headers: hdrs });
-              const data = await res.json().catch(() => ({}));
-              if (!res.ok) throw new Error(`API error ${res.status}: ${JSON.stringify(data)}`);
-              return data;
-            };
 
-            // ۱. ساخت فایل تصادفی
-            const filePath = '/tmp/test_file.bin';
+            // ۱. ساخت فایل تصادفی ۱۰MB
+            log(`ساخت فایل تصادفی ${SIZE_MB}MB...`);
+            const filePath = '/tmp/test_10mb.bin';
             {
               const chunk = Buffer.allocUnsafe(1024 * 1024);
               const fd = fs.openSync(filePath, 'w');
@@ -49,63 +55,58 @@ jobs:
               }
               fs.closeSync(fd);
             }
-            log(`فایل ${SIZE_MB}MB ساخته شد.`);
 
-            // ۲. ساخت release
+            // ۲. ایجاد Release
             const tag = `test-${Date.now()}`;
-            log(`ساخت release با tag=${tag} ...`);
-            const rel = await api(`https://api.github.com/repos/${owner}/${repo}/releases`, {
+            log(`درخواست Release جدید با tag=${tag}...`);
+            const rel = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {
               method: 'POST',
+              headers: {
+                Authorization: `token ${TOKEN}`,
+                'Content-Type': 'application/json'
+              },
               body: JSON.stringify({
                 tag_name: tag,
                 name: 'تست لینک مستقیم',
-                body: 'Release موقت برای تست',
                 draft: false,
                 prerelease: true
               })
-            });
+            }).then(r => r.json());
+            if (!rel.upload_url) throw new Error(`ساخت Release شکست: ${JSON.stringify(rel)}`);
             const uploadUrl = rel.upload_url.replace('{?name,label}', '');
-            log('Release ساخته شد.');
+            log('✅ Release ساخته شد.');
 
-            // ۳. آپلود asset
-            const assetName = 'test_10mb.bin';
-            log('در حال آپلود asset...');
+            // ۳. آپلود فایل به Release
+            log('📤 آپلود asset...');
             const buf = fs.readFileSync(filePath);
-            const assetRes = await fetch(`${uploadUrl}?name=${encodeURIComponent(assetName)}`, {
+            const asset = await fetch(`${uploadUrl}?name=test_10mb.bin`, {
               method: 'POST',
               headers: {
                 Authorization: `token ${TOKEN}`,
                 'Content-Type': 'application/octet-stream'
               },
               body: buf
-            });
-            const asset = await assetRes.json();
-            if (!assetRes.ok) throw new Error(`Upload fail: ${JSON.stringify(asset)}`);
+            }).then(r => r.json());
+            if (!asset.browser_download_url) throw new Error(`آپلود ناموفق: ${JSON.stringify(asset)}`);
+
             const downloadUrl = asset.browser_download_url;
-            log(`✅ آپلود کامل. لینک: ${downloadUrl}`);
+            log(`🎉 موفق! لینک مستقیم:\n${downloadUrl}`);
 
-            // ۴. نوشتن نتیجه در فایل
-            const resultText = 
-              `زمان تست: ${new Date().toISOString()}\n` +
-              `حجم فایل: ${SIZE_MB} مگابایت\n` +
-              `لینک مستقیم دانلود:\n${downloadUrl}\n\n` +
-              `⚠️ لطفاً این لینک را در مرورگر یا دانلود منیجر امتحان کنید.\n` +
-              `(Release موقت است و تا پاک‌کردن دستی باقی می‌ماند.)\n`;
-            fs.writeFileSync('test_link.txt', resultText, 'utf8');
-            log('فایل test_link.txt ایجاد شد.');
-
-            // ۵. پوش کردن فایل به ریپو
-            execSync('git config user.name "github-actions[bot]"', {stdio:'pipe'});
-            execSync('git config user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
+            // ۴. ذخیره لینک در ریپو
+            const output = `لینک تست مستقیم:\n${downloadUrl}\n\nزمان: ${new Date().toISOString()}\nحجم: ${SIZE_MB}MB\n`;
+            fs.writeFileSync('test_link.txt', output);
             execSync('git add test_link.txt', {stdio:'pipe'});
-            try { execSync('git commit -m "📎 ثبت لینک تست مستقیم"', {stdio:'pipe'}); } catch(e) {}
+            execSync('git commit -m "📎 ذخیره لینک تست مستقیم"', {stdio:'pipe'});
             execSync('git push', {stdio:'pipe'});
-            log('📤 فایل test_link.txt با موفقیت پوش شد. اکنون در ریپو قابل مشاهده است.');
+            log('📤 فایل test_link.txt در ریپو ذخیره شد. آن را باز کن و لینک را تست کن.');
           })().catch(err => {
-            console.error('❌ شکست:', err.message);
-            // حتی در صورت خطا، فایل خطا رو هم می‌نویسیم
-            fs.writeFileSync('test_link.txt', `❌ خطا رخ داد:\n${err.message}\nلطفاً لاگ Actions را بررسی کنید.`, 'utf8');
-            execSync('git add test_link.txt && git commit -m "ثبت خطای تست" && git push', {stdio:'pipe'});
+            console.error('❌ خطا:', err.message);
+            // در صورت خطا هم فایل را با پیام خطا می‌سازیم
+            const errorMsg = `❌ خطا در تست:\n${err.message}\nزمان: ${new Date().toISOString()}`;
+            fs.writeFileSync('test_link.txt', errorMsg);
+            try {
+              execSync('git add test_link.txt && git commit -m "ثبت خطای تست" && git push', {stdio:'pipe'});
+            } catch(e) {}
             process.exit(1);
           });
           ENDSCRIPT
