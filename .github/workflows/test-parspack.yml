@@ -1,131 +1,1053 @@
-name: 🧪 تست مخزن موقت (امن با PAT_TOKEN)
+name: 🎬 ربات یوتیوب (نسخهٔ طلایی نهایی با ادمین)
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
 
 jobs:
-  test:
+  bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 330
     permissions:
-      contents: write           # برای push به ریپوی اصلی
+      contents: write
     steps:
-      - name: 📥 checkout ریپوی اصلی
+      - name: 📥 دریافت کد
         uses: actions/checkout@v4
 
-      - name: 🔬 تست مخزن موقت با PAT_TOKEN
-        env:
-          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}   # 👈 توکن از Secret خونده می‌شه
+      - name: 🧰 نصب پیش‌نیازها
         run: |
-          # ============================================================
-          log() { echo "[$(date '+%H:%M:%S')] ℹ️ $1"; }
-          success() { echo "[$(date '+%H:%M:%S')] ✅ $1"; }
-          error() { echo "[$(date '+%H:%M:%S')] ❌ $1"; }
+          sudo apt-get update -qq && sudo apt-get install -y curl unzip python3-pip ffmpeg
+          pip install yt-dlp
+          wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -O /tmp/xray.zip
+          unzip -q /tmp/xray.zip -d xray && chmod +x xray/xray
+          npm init -y
+          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
-          log "=============================================="
-          log "شروع تست با توکن از Secret"
-          log "=============================================="
+      - name: 🧪 پیش‌آزمون سریع پروکسی‌ها
+        run: |
+          cat > test_proxies.cjs << 'ENDTEST'
+          const { spawn, execSync } = require('child_process');
+          const fs = require('fs');
+          const path = require('path');
 
-          if [ -z "${PAT_TOKEN}" ]; then
-            error "PAT_TOKEN در Secret تنظیم نشده."
-            exit 1
-          fi
+          const PROXY_FILE = 'کانفیگ های خوب.txt';
+          const CONCURRENCY = 20;
 
-          # ۱. بررسی صحت توکن
-          log "مرحله ۱: بررسی صحت توکن..."
-          USER_CODE=$(curl -s -o /tmp/user.json -w "%{http_code}" \
-            -H "Authorization: token ${PAT_TOKEN}" \
-            https://api.github.com/user)
-          log "HTTP status: ${USER_CODE}"
-          if [ "${USER_CODE}" != "200" ]; then
-            error "توکن نامعتبر. پاسخ:"
-            cat /tmp/user.json
-            exit 1
-          fi
-          success "توکن معتبر است"
-          USERNAME=$(grep -o '"login": "[^"]*"' /tmp/user.json | head -1 | cut -d'"' -f4)
-          log "نام کاربری: ${USERNAME}"
+          execSync('git config --global user.name "github-actions[bot]"', {stdio:'pipe'});
+          execSync('git config --global user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
 
-          # ۲. ساخت مخزن موقت
-          log "مرحله ۲: ساخت مخزن موقت..."
-          TIMESTAMP=$(date +%s)
-          REPO_NAME="temp-test-${TIMESTAMP}"
-          log "نام مخزن: ${REPO_NAME}"
+          function log(...args) { console.log(`[${new Date().toISOString().substring(0,19)}]`, ...args); }
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-          CREATE_CODE=$(curl -s -o /tmp/create.json -w "%{http_code}" \
-            -X POST \
-            -H "Authorization: token ${PAT_TOKEN}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Content-Type: application/json" \
-            -d "{\"name\":\"${REPO_NAME}\",\"auto_init\":false,\"private\":false,\"description\":\"مخزن تست موقت\"}" \
-            https://api.github.com/user/repos)
+          function parseURI(uri) {
+            try {
+              const u = new URL(uri);
+              return {
+                protocol: u.protocol.replace(':',''),
+                uuid: u.username,
+                address: u.hostname,
+                port: u.port,
+                params: Object.fromEntries(u.searchParams.entries())
+              };
+            } catch(_) { return null; }
+          }
+          function generateXrayConfig(uri) {
+            const p = parseURI(uri); if (!p) return null;
+            const inbound = { port: 10808, protocol: 'socks', settings: { auth: 'noauth', udp: true } };
+            let outbound = { protocol: p.protocol, streamSettings: { network: p.params.type || 'tcp' } };
+            if (p.protocol === 'trojan') outbound.settings = { servers: [{ address: p.address, port: parseInt(p.port), password: p.uuid }] };
+            else outbound.settings = { vnext: [{ address: p.address, port: parseInt(p.port), users: [{ id: p.uuid, encryption: p.params.encryption || 'none', flow: p.params.flow || '' }] }] };
+            const net = p.params.type || 'tcp'; outbound.streamSettings.network = net;
+            if (net === 'ws') outbound.streamSettings.wsSettings = { path: p.params.path || '/', headers: p.params.host ? { Host: p.params.host } : {} };
+            const sec = p.params.security || 'none';
+            if (sec === 'tls' || sec === 'reality') {
+              outbound.streamSettings.security = sec;
+              const tls = { serverName: p.params.sni || p.address };
+              if (sec === 'reality') { tls.fingerprint = p.params.fp || 'chrome'; tls.publicKey = p.params.pbk || ''; tls.shortId = p.params.sid || ''; tls.spiderX = ''; }
+              if (p.params.allowInsecure === '1') tls.allowInsecure = true;
+              if (p.params.alpn) tls.alpn = p.params.alpn.split(',');
+              outbound.streamSettings.tlsSettings = tls;
+            } else outbound.streamSettings.security = 'none';
+            return { inbounds: [inbound], outbounds: [outbound] };
+          }
+          async function startXray(uri, idx) {
+            const config = generateXrayConfig(uri); if (!config) return null;
+            const cfgPath = `/tmp/xray_test_${idx}.json`;
+            fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2));
+            const proc = spawn(path.join(process.cwd(), 'xray', 'xray'), ['run', '-config', cfgPath], { stdio: 'pipe' });
+            await sleep(1500);
+            return proc;
+          }
 
-          log "HTTP status ساخت: ${CREATE_CODE}"
-          if [ "${CREATE_CODE}" != "201" ]; then
-            error "ساخت مخزن شکست:"
-            cat /tmp/create.json
-            exit 1
-          fi
-          success "مخزن ساخته شد"
-          FULL_NAME=$(grep -o '"full_name": "[^"]*"' /tmp/create.json | head -1 | cut -d'"' -f4)
-          CLONE_URL=$(grep -o '"clone_url": "[^"]*"' /tmp/create.json | head -1 | cut -d'"' -f4)
-          OWNER=$(echo "${FULL_NAME}" | cut -d'/' -f1)
-          log "full_name: ${FULL_NAME}"
+          async function testProxy(uri, index) {
+            const xrayProc = await startXray(uri, index);
+            if (!xrayProc) return { ok: false, uri };
 
-          # ۳. ساخت فایل تصادفی ۱۰MB
-          log "مرحله ۳: ساخت فایل ۱۰MB..."
-          dd if=/dev/urandom of=/tmp/random_10mb.bin bs=1M count=10 status=none
-          success "فایل تصادفی ساخته شد"
+            let connOk = false;
+            try {
+              execSync('curl --socks5 127.0.0.1:10808 --max-time 3 -o /dev/null -s http://www.gstatic.com/generate_204', { stdio:'pipe' });
+              connOk = true;
+            } catch(_) {}
 
-          # ۴. push به مخزن موقت
-          log "مرحله ۴: push..."
-          TMP_DIR="/tmp/temp-repo"
-          rm -rf "${TMP_DIR}" && mkdir -p "${TMP_DIR}"
-          cd "${TMP_DIR}"
-          git init && git checkout -b main
-          git config user.name "testbot"
-          git config user.email "testbot@users.noreply.github.com"
-          cp /tmp/random_10mb.bin .
-          git add random_10mb.bin
-          git commit -m "test file"
-          PUSH_URL=$(echo "${CLONE_URL}" | sed "s|https://|https://${PAT_TOKEN}@|")
-          git remote add origin "${PUSH_URL}"
-          git push -u origin main
-          success "push انجام شد"
+            if (!connOk) {
+              xrayProc.kill();
+              return { ok: false, uri };
+            }
 
-          # ۵. ساخت لینک raw
-          RAW_LINK="https://raw.githubusercontent.com/${OWNER}/${REPO_NAME}/main/random_10mb.bin"
-          log "لینک raw: ${RAW_LINK}"
+            let ytOk = false;
+            try {
+              const httpCode = execSync(
+                `curl --socks5 127.0.0.1:10808 -o /dev/null -s -w '%{http_code}' --max-time 5 https://www.youtube.com/`,
+                { encoding: 'utf8' }
+              ).trim();
+              if (httpCode.startsWith('2') || httpCode.startsWith('3')) ytOk = true;
+            } catch(_) {}
 
-          # ۶. تست دانلود از روی رانر
-          log "مرحله ۶: تست دانلود..."
-          HTTP_RESP=$(curl -s -o /tmp/downloaded.bin -w "%{http_code}" --max-time 30 "${RAW_LINK}")
-          DL_SIZE=$(stat -c%s /tmp/downloaded.bin 2>/dev/null || echo 0)
-          log "http_code=${HTTP_RESP}, size=${DL_SIZE}"
-          if [ "${HTTP_RESP}" = "200" ] && [ "${DL_SIZE}" -gt 0 ]; then
-            success "دانلود موفق از سرور گیت‌هاب"
-          else
-            log "دانلود از رانر ممکن است محدود باشد (در ایران تست کنید)"
-          fi
+            xrayProc.kill();
+            return { ok: ytOk, uri };
+          }
 
-          # ۷. ذخیره نتایج در ریپوی اصلی
-          log "مرحله ۷: ذخیره نتایج..."
-          cd /home/runner/work/iranesttt/iranesttt
-          cat > test_link.txt << EOF
-          ✅ تست با PAT_TOKEN (امن) موفق
-          زمان: $(date)
-          مخزن: ${FULL_NAME}
-          لینک مستقیم:
-          ${RAW_LINK}
+          (async () => {
+            if (!fs.existsSync(PROXY_FILE)) { log('❌ فایل پروکسی یافت نشد.'); process.exit(1); }
+            const allProxies = fs.readFileSync(PROXY_FILE, 'utf8').split('\n').map(l=>l.trim()).filter(l=>/^(vless|trojan|ss|vmess):\/\//.test(l));
+            log(`📋 ${allProxies.length} پروکسی برای تست پیدا شد.`);
+            const good = [];
+            for (let i = 0; i < allProxies.length; i += CONCURRENCY) {
+              const batch = allProxies.slice(i, i + CONCURRENCY);
+              const results = await Promise.all(batch.map((p, idx) => testProxy(p, i + idx)));
+              for (const r of results) {
+                if (r.ok) good.push(r.uri);
+                else log(`🗑️ پروکسی حذف شد (ناموفق در اتصال یا یوتیوب)`);
+              }
+            }
+            fs.writeFileSync(PROXY_FILE, good.join('\n') + '\n');
+            log(`✅ ${good.length} پروکسی سالم باقی ماند.`);
+            try {
+              execSync('git add "کانفیگ های خوب.txt"', {stdio:'pipe'});
+              execSync('git commit -m "🧪 به‌روزرسانی پروکسی‌های خوب (تست سریع)"', {stdio:'pipe'});
+              execSync('git push', {stdio:'pipe'});
+              log('📤 فایل پروکسی push شد');
+            } catch(e) {}
+          })();
+          ENDTEST
 
-          برای تست در ایران، لینک بالا را در مرورگر باز کنید.
-          EOF
+          timeout 600 node test_proxies.cjs
 
-          git add test_link.txt
-          git commit -m "گزارش تست با PAT_TOKEN"
-          git push
-          success "نتایج در test_link.txt ذخیره شد"
-          echo ""
-          echo "=============================="
-          echo "   ${RAW_LINK}"
-          echo "=============================="
+      - name: 🤖 اجرای ربات طلایی
+        env:
+          RUBIKA_BOT_TOKEN: ${{ secrets.RUBIKA_BOT_TOKEN }}
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          cat > agent.cjs << 'ENDSCRIPT'
+          const { spawn, execSync, exec } = require('child_process');
+          const fs = require('fs');
+          const path = require('path');
+          const puppeteer = require('puppeteer-extra');
+          const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+          puppeteer.use(StealthPlugin());
+
+          execSync('git config --global user.name "github-actions[bot]"', {stdio:'pipe'});
+          execSync('git config --global user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
+
+          const PROXY_FILE = 'کانفیگ های خوب.txt';
+          const COOKIE_FILE = '/tmp/youtube_cookies.txt';
+          const LOG_FILE = 'bot_log.txt';
+          const STATS_FILE = 'bot_stats.json';
+          const TOKEN = process.env.RUBIKA_BOT_TOKEN;
+          const ADMIN_SECRET = process.env.ADMIN_SECRET || '';
+          const PAT_TOKEN = process.env.PAT_TOKEN || '';
+          if (!TOKEN) { console.error('❌ TOKEN تنظیم نشده'); process.exit(1); }
+          if (!PAT_TOKEN) { console.error('❌ PAT_TOKEN تنظیم نشده'); process.exit(1); }
+
+          const MAX_DURATION = 5400; // 1.5 hours in seconds
+          const DAILY_LIMIT = 5400;  // per user per cycle
+          const MAX_PROXY_RETRIES = 3;
+          const MAX_QUEUE = 200;
+          const MIN_SPEED_BYTES = 1 * 1024 * 1024; // 1 MB/s
+          const SMALL_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+          const CHUNK_SIZE = 90 * 1024 * 1024; // 90 MB per chunk
+          const MAX_REPO_SIZE = 9 * 1024 * 1024 * 1024; // 9 GB max repo size
+
+          // ---------- state ----------
+          let proxies = [];
+          const queue = [];
+          let isProcessing = false;
+          const recentTimes = [];
+          let currentProxy = null;
+          let xrayProc = null;
+          let consecutiveSuccess = 0;
+          const userDailyUsage = new Map();
+          const proxyStats = new Map();
+          const rateLimitQueue = new Map();
+          const adminUsers = new Set();
+          const proxyCookieMap = new Set();
+          const priorityCredits = new Map();
+
+          // temp repo management
+          let currentTempRepo = null;  // { owner, repo, fullName, cloneUrl }
+          let currentLocalRepoPath = '/tmp/current-temp-repo';
+          let currentRepoPushedSize = 0; // bytes pushed to current repo
+          const allTempRepos = []; // array of { fullName, cloneUrl }
+
+          // ---------- helpers ----------
+          function ts() { return new Date().toISOString().replace('T',' ').substring(0,19); }
+          function log(...args) {
+            const msg = `[${ts()}] ${args.join(' ')}`;
+            console.log(msg);
+            try { fs.appendFileSync(LOG_FILE, msg + '\n'); } catch(_){}
+          }
+          function err(...args) {
+            const msg = `[${ts()}] ❌ ${args.join(' ')}`;
+            console.error(msg);
+            try { fs.appendFileSync(LOG_FILE, msg + '\n'); } catch(_){}
+          }
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+          // ======================== Xray ========================
+          function parseURI(uri) {
+            try {
+              const u = new URL(uri);
+              return {
+                protocol: u.protocol.replace(':',''),
+                uuid: u.username,
+                address: u.hostname,
+                port: u.port,
+                params: Object.fromEntries(u.searchParams.entries())
+              };
+            } catch(_) { return null; }
+          }
+          function generateXrayConfig(uri) {
+            const p = parseURI(uri); if (!p) return null;
+            const inbound = { port: 10808, protocol: 'socks', settings: { auth: 'noauth', udp: true } };
+            let outbound = { protocol: p.protocol, streamSettings: { network: p.params.type || 'tcp' } };
+            if (p.protocol === 'trojan') outbound.settings = { servers: [{ address: p.address, port: parseInt(p.port), password: p.uuid }] };
+            else outbound.settings = { vnext: [{ address: p.address, port: parseInt(p.port), users: [{ id: p.uuid, encryption: p.params.encryption || 'none', flow: p.params.flow || '' }] }] };
+            const net = p.params.type || 'tcp'; outbound.streamSettings.network = net;
+            if (net === 'ws') outbound.streamSettings.wsSettings = { path: p.params.path || '/', headers: p.params.host ? { Host: p.params.host } : {} };
+            const sec = p.params.security || 'none';
+            if (sec === 'tls' || sec === 'reality') {
+              outbound.streamSettings.security = sec;
+              const tls = { serverName: p.params.sni || p.address };
+              if (sec === 'reality') { tls.fingerprint = p.params.fp || 'chrome'; tls.publicKey = p.params.pbk || ''; tls.shortId = p.params.sid || ''; tls.spiderX = ''; }
+              if (p.params.allowInsecure === '1') tls.allowInsecure = true;
+              if (p.params.alpn) tls.alpn = p.params.alpn.split(',');
+              outbound.streamSettings.tlsSettings = tls;
+            } else outbound.streamSettings.security = 'none';
+            return { inbounds: [inbound], outbounds: [outbound] };
+          }
+          async function startXray(uri, idx) {
+            const config = generateXrayConfig(uri); if (!config) return null;
+            const cfgPath = `/tmp/xray_${idx}.json`;
+            fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2));
+            const proc = spawn(path.join(process.cwd(), 'xray', 'xray'), ['run', '-config', cfgPath], { stdio: 'pipe' });
+            await sleep(1500);
+            return proc;
+          }
+          function testCurlQuick() {
+            try {
+              execSync('curl --socks5 127.0.0.1:10808 --max-time 3 -o /dev/null -s http://www.gstatic.com/generate_204', { stdio:'pipe' });
+              return true;
+            } catch(_) { return false; }
+          }
+
+          // ======================== Rubika API ========================
+          const BASE = `https://botapi.rubika.ir/v3/${TOKEN}`;
+          async function api(method, body={}, retries=5) {
+            const url = `${BASE}/${method}`;
+            for (let a=0; a<retries; a++) {
+              try {
+                const ctrl = new AbortController(); const id = setTimeout(()=>ctrl.abort(),30000);
+                const res = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal});
+                clearTimeout(id);
+                const t = await res.text();
+                if (t.startsWith('<!DOCTYPE html>') || t.includes('nginx')) {
+                  log(`⚠️ خطای HTML از سرور (تلاش ${a+1})، صبر ${1<<a} ثانیه...`);
+                  await sleep((1<<a)*1000);
+                  continue;
+                }
+                let d; try { d = JSON.parse(t); } catch(_) { if (a<retries-1) { await sleep(2000*(a+1)); continue; } return {error:true, raw:t}; }
+                return d;
+              } catch(e) { if (a<retries-1) { await sleep(2000*(a+1)); continue; } return {error:true, message:e.message}; }
+            }
+            return {error:true, message:'بعد از ۵ تلاش ناموفق'};
+          }
+          async function sendMessage(chatId, text, keypad = null) {
+            const body = { chat_id: chatId, text };
+            if (keypad) { body.chat_keypad = keypad; body.chat_keypad_type = 'New'; }
+            return await api('sendMessage', body);
+          }
+
+          // ======================== کوکی یوتیوب ========================
+          async function grabCookies() {
+            if (!currentProxy) return false;
+            if (proxyCookieMap.has(currentProxy)) return true;
+            let browser;
+            try {
+              browser = await puppeteer.launch({ headless:'new', args:['--no-sandbox','--disable-setuid-sandbox','--proxy-server=socks5://127.0.0.1:10808','--disable-dev-shm-usage'] });
+              const page = await browser.newPage();
+              await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0');
+              await page.goto('https://www.youtube.com/', { waitUntil:'networkidle2', timeout:40000 });
+              await sleep(3000);
+              const cookies = await page.cookies();
+              await browser.close();
+              if (cookies.length===0) return false;
+              const lines = ['# Netscape HTTP Cookie File', ''];
+              cookies.forEach(c => {
+                const domain = c.domain.startsWith('.') ? c.domain : '.' + c.domain;
+                const flag = c.secure ? 'TRUE' : 'FALSE';
+                const exp = c.expires>0 ? Math.floor(c.expires) : 0;
+                lines.push(`${domain}\tTRUE\t${c.path}\t${flag}\t${exp}\t${c.name}\t${c.value}`);
+              });
+              fs.writeFileSync(COOKIE_FILE, lines.join('\n'));
+              proxyCookieMap.add(currentProxy);
+              log('🍪 کوکی جدید دریافت شد');
+              return true;
+            } catch(e) { err('خطای کوکی:', e.message); if (browser) await browser.close().catch(()=>{}); return false; }
+          }
+
+          // ======================== پروکسی تصادفی ========================
+          function getRandomProxy() {
+            if (proxies.length === 0) return null;
+            const idx = Math.floor(Math.random() * proxies.length);
+            return proxies[idx];
+          }
+          async function switchToRandomProxy(reason = '') {
+            if (xrayProc) { xrayProc.kill(); await sleep(500); xrayProc = null; }
+            currentProxy = null;
+            for (let i=0; i<proxies.length; i++) {
+              const candidate = getRandomProxy();
+              if (!candidate) break;
+              log(`🔀 تلاش با پروکسی تصادفی (${reason}): ${candidate.substring(0,60)}...`);
+              xrayProc = await startXray(candidate, Date.now());
+              await sleep(1500);
+              if (testCurlQuick()) {
+                currentProxy = candidate;
+                if (!proxyCookieMap.has(currentProxy)) {
+                  try { fs.unlinkSync(COOKIE_FILE); } catch(_) {}
+                }
+                return true;
+              } else {
+                if (xrayProc) { xrayProc.kill(); await sleep(500); xrayProc = null; }
+              }
+            }
+            return false;
+          }
+
+          // ======================== اطلاعات واقعی ویدیو ========================
+          function getRealVideoInfo(url) {
+            const cook = fs.existsSync(COOKIE_FILE) ? `--cookies ${COOKIE_FILE}` : '';
+            const cmd = `yt-dlp ${cook} --proxy socks5h://127.0.0.1:10808 --no-playlist --dump-json "${url}"`;
+            return new Promise((resolve) => {
+              exec(cmd, { timeout: 20000 }, (error, stdout, stderr) => {
+                if (error) {
+                  log(`⚠️ دریافت اطلاعات ویدیو شکست (exit code: ${error.code}): ${(stderr||'').substring(0,200)}`);
+                  resolve({ error: true, stderr: stderr || error.message });
+                  return;
+                }
+                try {
+                  const data = JSON.parse(stdout);
+                  const duration = data.duration || 0;
+                  let size = 0;
+                  const formats = data.formats || [];
+                  const targetFmt = formats.find(f =>
+                    f.height <= 480 && f.vcodec && f.vcodec.startsWith('avc1') &&
+                    f.acodec && f.acodec.startsWith('mp4a') &&
+                    f.ext === 'mp4'
+                  ) || formats.find(f => f.height <= 480 && f.ext === 'mp4') || data;
+                  size = targetFmt.filesize || targetFmt.filesize_approx || 0;
+                  resolve({ duration, size, stderr });
+                } catch(e) {
+                  log(`⚠️ JSON معتبر نیست: ${e.message}`);
+                  resolve({ error: true, stderr: 'JSON parse error' });
+                }
+              });
+            });
+          }
+
+          function getErrorMessageFromStderr(stderrText) {
+            const s = stderrText || '';
+            if (s.includes('Sign in to confirm you’re not a bot')) return '🤖 یوتیوب درخواست را مشکوک تشخیص داد. لطفاً چند دقیقه بعد دوباره امتحان کنید.';
+            if (s.includes('The uploader has not made this video available in your country')) return '🌍 این ویدیو در کشور شما قابل مشاهده نیست (محدودیت جغرافیایی).';
+            if (s.includes('Video unavailable') || s.includes('private video')) return '🔒 ویدیو خصوصی یا حذف شده است.';
+            if (s.includes('Connection refused')) return '🔌 اتصال به یوتیوب برقرار نشد. در حال امتحان پروکسی دیگر...';
+            return '⚠️ نتوانستم اطلاعات ویدیو را دریافت کنم.';
+          }
+
+          // ======================== دانلود با نظارت سرعت ========================
+          async function downloadYouTube(url) {
+            if (!currentProxy) return null;
+            if (!(await grabCookies())) return null;
+
+            const fmt = `bestvideo[height<=480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/best[height<=480][ext=mp4]`;
+            const out = '/tmp/video_raw.mp4';
+            const args = [
+              '--cookies', COOKIE_FILE,
+              '--proxy', `socks5h://127.0.0.1:10808`,
+              '-N', '32',
+              '--concurrent-fragments', '32',
+              '--buffer-size', '2048K',
+              '--no-playlist',
+              '--format', fmt,
+              '--merge-output-format', 'mp4',
+              '--output', out,
+              url
+            ];
+
+            return new Promise((resolve) => {
+              const proc = spawn('yt-dlp', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+              const startTime = Date.now();
+              let stderr = '';
+              let processEnded = false;
+              let monitorDelay, monitorInterval;
+
+              proc.stderr.on('data', d => { stderr += d.toString(); });
+
+              const cleanupMonitors = () => {
+                if (monitorDelay) clearTimeout(monitorDelay);
+                if (monitorInterval) clearInterval(monitorInterval);
+                monitorDelay = null;
+                monitorInterval = null;
+              };
+
+              const handleFinish = (result) => {
+                processEnded = true;
+                cleanupMonitors();
+                const elapsed = (Date.now() - startTime) / 1000;
+                if (result.success) {
+                  const totalSize = fs.statSync(out).size;
+                  const avgSpeed = totalSize / elapsed;
+                  log(`✅ دانلود کامل | حجم: ${(totalSize/(1024*1024)).toFixed(1)}MB | زمان: ${elapsed.toFixed(1)}s | سرعت میانگین: ${(avgSpeed/(1024*1024)).toFixed(1)} MB/s`);
+                  resolve({ path: out, time: elapsed, stderr });
+                } else {
+                  log(`❌ دانلود شکست خورد (exit code: ${result.code})`);
+                  if (stderr) log('📄 stderr:', stderr.substring(0, 500));
+                  if (stderr.includes('403') || stderr.includes('Forbidden')) {
+                    proxyCookieMap.delete(currentProxy);
+                    try { fs.unlinkSync(COOKIE_FILE); } catch(_) {}
+                  }
+                  try { if (fs.existsSync(out)) fs.unlinkSync(out); } catch(_) {}
+                  resolve({ error: true, stderr });
+                }
+              };
+
+              proc.on('close', (code) => {
+                if (code === 0 && fs.existsSync(out) && fs.statSync(out).size > 0) {
+                  handleFinish({ success: true });
+                } else {
+                  handleFinish({ success: false, code });
+                }
+              });
+
+              proc.on('error', (e) => {
+                err('خطای spawn yt-dlp:', e.message);
+                cleanupMonitors();
+                resolve({ error: true, stderr: e.message });
+              });
+
+              // نظارت بر سرعت
+              monitorDelay = setTimeout(() => {
+                if (processEnded) return;
+                try {
+                  if (fs.existsSync(out)) {
+                    const initSize = fs.statSync(out).size;
+                    if (initSize < SMALL_FILE_BYTES) return;
+                  }
+                } catch(_) {}
+
+                let lastSize = 0;
+                let lowSpeedCount = 0;
+                monitorInterval = setInterval(() => {
+                  if (processEnded) { cleanupMonitors(); return; }
+                  try {
+                    if (!fs.existsSync(out)) return;
+                    const stat = fs.statSync(out);
+                    const currentSize = stat.size;
+                    const speed = currentSize - lastSize;
+                    lastSize = currentSize;
+                    if (speed < MIN_SPEED_BYTES) {
+                      lowSpeedCount++;
+                      if (lowSpeedCount >= 5) {
+                        log(`🐌 سرعت زیر ۱ مگابایت/ثانیه برای ۵ ثانیه متوالی، قطع دانلود`);
+                        proc.kill('SIGTERM');
+                        cleanupMonitors();
+                        removeCurrentProxy('سرعت خیلی پایین');
+                        resolve({ error: true, stderr: 'low speed' });
+                      }
+                    } else {
+                      lowSpeedCount = 0;
+                    }
+                  } catch(_) {}
+                }, 1000);
+              }, 5000);
+            });
+          }
+
+          // ======================== حذف پروکسی ========================
+          function removeCurrentProxy(reason = '') {
+            if (!currentProxy) return;
+            log(`🗑️ حذف پروکسی از لیست (${reason}): ${currentProxy.substring(0,60)}...`);
+            proxies = proxies.filter(p => p !== currentProxy);
+            proxyCookieMap.delete(currentProxy);
+            try {
+              fs.writeFileSync(PROXY_FILE, proxies.join('\n') + '\n');
+              execSync('git add "کانفیگ های خوب.txt"', {stdio:'pipe'});
+              execSync(`git commit -m "🗑️ حذف پروکسی ضعیف (${reason})"`, {stdio:'pipe'});
+              execSync('git push', {stdio:'pipe'});
+              log('📤 پروکسی ضعیف حذف و push شد');
+            } catch(e) { err('خطا در push حذف پروکسی:', e.message); }
+          }
+
+          // ======================== تبدیل ========================
+          async function makeCompatible(inputPath) {
+            const v = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim();
+            const a = execSync(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim();
+            const ext = path.extname(inputPath).toLowerCase();
+            if (ext === '.mp4' && v==='h264' && a==='aac') return inputPath;
+            log('🔄 تبدیل ظرف (فقط کپی) به MP4...');
+            const out = inputPath.replace(/\.\w+$/, '_ok.mp4');
+            execSync(`ffmpeg -i "${inputPath}" -c copy -movflags +faststart "${out}"`, {stdio:'inherit', timeout:300000});
+            return out;
+          }
+
+          // ======================== GitHub API helpers (temp repo) ========================
+          async function ghApi(url, options = {}) {
+            const res = await fetch(url, {
+              ...options,
+              headers: {
+                Authorization: `token ${PAT_TOKEN}`,
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+              }
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(`GitHub API (${res.status}): ${JSON.stringify(data)}`);
+            }
+            return data;
+          }
+
+          async function createNewTempRepo() {
+            const repoName = `yt-temp-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+            log(`📦 ساخت مخزن موقت جدید: ${repoName}`);
+            const data = await ghApi('https://api.github.com/user/repos', {
+              method: 'POST',
+              body: JSON.stringify({
+                name: repoName,
+                auto_init: false,
+                private: false,
+                description: 'مخزن موقت ربات یوتیوب - خودکار حذف می‌شود'
+              })
+            });
+            const fullName = data.full_name;
+            const cloneUrl = data.clone_url;
+            const owner = fullName.split('/')[0];
+            const repoInfo = { owner, repo: repoName, fullName, cloneUrl };
+            allTempRepos.push({ fullName, cloneUrl });
+            log(`✅ مخزن موقت ساخته شد: ${fullName}`);
+            return repoInfo;
+          }
+
+          async function deleteTempRepo(fullName) {
+            log(`🗑️ حذف مخزن موقت: ${fullName}`);
+            await ghApi(`https://api.github.com/repos/${fullName}`, { method: 'DELETE' }).catch(e => {
+              err(`خطا در حذف مخزن ${fullName}: ${e.message}`);
+            });
+          }
+
+          function initLocalRepo() {
+            if (fs.existsSync(currentLocalRepoPath)) {
+              fs.rmSync(currentLocalRepoPath, { recursive: true });
+            }
+            fs.mkdirSync(currentLocalRepoPath, { recursive: true });
+            process.chdir(currentLocalRepoPath);
+            execSync('git init', {stdio:'pipe'});
+            execSync('git checkout -b main', {stdio:'pipe'});
+            execSync('git config user.name "yt-bot"', {stdio:'pipe'});
+            execSync('git config user.email "yt-bot@users.noreply.github.com"', {stdio:'pipe'});
+            // Add an initial empty commit to have 'main' branch
+            execSync('git commit --allow-empty -m "init"', {stdio:'pipe'});
+          }
+
+          async function setupCurrentRepo() {
+            if (!currentTempRepo) {
+              currentTempRepo = await createNewTempRepo();
+              initLocalRepo();
+              // Set remote
+              const pushUrl = currentTempRepo.cloneUrl.replace('https://', `https://${PAT_TOKEN}@`);
+              execSync(`git remote add origin ${pushUrl}`, {stdio:'pipe'});
+              execSync('git push -u origin main', {stdio:'pipe'});
+              currentRepoPushedSize = 0;
+            }
+          }
+
+          // Function to push a set of files (video chunks) into the temp repo
+          // files: array of { localPath, fileName } (fileName like part_001.mp4, localPath full path)
+          // videoId: unique string for folder name
+          // Returns array of raw links
+          async function pushVideoToTempRepo(videoId, files, totalSize) {
+            // Ensure a repo is set up and has space
+            if (currentRepoPushedSize + totalSize > MAX_REPO_SIZE) {
+              // Finish current repo, create new one
+              log(`🔄 مخزن فعلی پر شد (${(currentRepoPushedSize/(1024*1024*1024)).toFixed(1)}GB)، ساخت مخزن جدید`);
+              // We don't need to delete the old one now
+              currentTempRepo = null;
+              currentRepoPushedSize = 0;
+              await setupCurrentRepo();
+            }
+
+            await setupCurrentRepo();
+
+            // Copy files to local repo under videoId folder
+            const folderPath = path.join(currentLocalRepoPath, videoId);
+            if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+
+            for (const f of files) {
+              fs.copyFileSync(f.localPath, path.join(folderPath, f.fileName));
+            }
+
+            // Git add and commit
+            process.chdir(currentLocalRepoPath);
+            execSync(`git add ${videoId}`, {stdio:'pipe'});
+            execSync(`git commit -m "افزودن ویدیو ${videoId}"`, {stdio:'pipe'});
+
+            // Push
+            execSync('git push', {stdio:'pipe'});
+            log(`📤 ویدیو ${videoId} به مخزن ${currentTempRepo.fullName} push شد.`);
+
+            currentRepoPushedSize += totalSize;
+
+            // Generate raw links
+            const links = files.map(f => {
+              return `https://raw.githubusercontent.com/${currentTempRepo.owner}/${currentTempRepo.repo}/main/${videoId}/${encodeURIComponent(f.fileName)}`;
+            });
+            return links;
+          }
+
+          // ======================== تقسیم ویدیو و ارسال لینک‌ها ========================
+          async function processAndSendVideo(chatId, videoPath, baseName) {
+            const stats = fs.statSync(videoPath);
+            const totalSize = stats.size;
+            const totalMB = (totalSize / (1024*1024)).toFixed(1);
+            log(`✂️ پردازش ویدیو ${baseName} (${totalMB}MB) برای ارسال لینک مستقیم`);
+            await sendMessage(chatId, `📦 ویدیو ${totalMB}MB است. در حال آماده‌سازی قطعات...`);
+
+            const videoId = 'vid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+
+            if (totalSize <= CHUNK_SIZE) {
+              // No split needed, just push single file
+              const singleFile = [{ localPath: videoPath, fileName: `${baseName}.mp4` }];
+              const links = await pushVideoToTempRepo(videoId, singleFile, totalSize);
+              const linkText = `🎬 ${baseName}\n📥 لینک مستقیم:\n${links[0]}`;
+              await sendMessage(chatId, linkText);
+              return;
+            }
+
+            // Split into ~90MB chunks
+            const chunkDir = `/tmp/chunks_${Date.now()}`;
+            fs.mkdirSync(chunkDir, { recursive: true });
+            const pattern = path.join(chunkDir, 'part_%03d.mp4');
+            execSync(`ffmpeg -i "${videoPath}" -c copy -f segment -segment_size ${CHUNK_SIZE} -reset_timestamps 1 "${pattern}"`, {stdio:'inherit', timeout:600000});
+
+            let chunks = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
+            if (chunks.length === 0) {
+              fs.rmSync(chunkDir, { recursive: true });
+              await sendMessage(chatId, '❌ خطا در تقسیم ویدیو');
+              return;
+            }
+
+            const files = chunks.map(name => ({
+              localPath: path.join(chunkDir, name),
+              fileName: name
+            }));
+
+            const links = await pushVideoToTempRepo(videoId, files, totalSize);
+
+            // Clean up chunks
+            for (const f of files) { try { fs.unlinkSync(f.localPath); } catch(_) {} }
+            fs.rmSync(chunkDir, { recursive: true });
+
+            // Build message with all links
+            let msg = `🎬 ${baseName} آماده دانلود (حجم کل: ${totalMB}MB)\n\n📥 لینک‌های دانلود مستقیم (تا ۳ ساعت معتبر):\n\n`;
+            links.forEach((link, i) => {
+              msg += `${i+1}. ${link}\n`;
+            });
+            msg += '\n⚠️ این لینک‌ها موقت هستند و پس از چند ساعت حذف می‌شوند. لطفاً سریع دانلود کنید.';
+            await sendMessage(chatId, msg);
+            log(`📋 لینک‌ها برای ${baseName} ارسال شد.`);
+          }
+
+          // ======================== صف و پردازش ========================
+          function getAverageTime() {
+            if (recentTimes.length === 0) return 90;
+            return recentTimes.reduce((a,b)=>a+b, 0) / recentTimes.length;
+          }
+
+          const stats = { totalBytes:0, totalVideos:0, totalDuration:0, uniqueUsers: new Set(), failedAttempts:0 };
+          function saveStatsToFile() {
+            const avgTime = getAverageTime();
+            const proxyList = [];
+            for (const [uri, pstats] of proxyStats.entries()) {
+              const speeds = pstats.speeds || [];
+              const avgSpeed = speeds.length > 0 ? speeds.reduce((a,b)=>a+b,0)/speeds.length : 0;
+              proxyList.push({
+                proxy: uri.substring(0,60),
+                avgSpeedMBps: (avgSpeed / (1024*1024)).toFixed(2),
+                samples: speeds.length,
+                failures: pstats.failures || 0,
+                lastUsed: new Date(pstats.lastUsed || 0).toISOString()
+              });
+            }
+            const data = {
+              totalDataMB: (stats.totalBytes / (1024*1024)).toFixed(2),
+              totalVideos: stats.totalVideos,
+              totalDurationMinutes: (stats.totalDuration / 60).toFixed(1),
+              uniqueUsers: stats.uniqueUsers.size,
+              failedAttempts: stats.failedAttempts,
+              avgProcessingTimeSec: avgTime.toFixed(1),
+              queueLength: queue.length,
+              currentProxy: currentProxy ? currentProxy.substring(0,40) : 'none',
+              proxies: proxyList
+            };
+            try { fs.writeFileSync(STATS_FILE, JSON.stringify(data, null, 2)); log('📊 آمار به‌روزرسانی شد'); } catch(e) { err('خطای ذخیره آمار:', e.message); }
+          }
+
+          function gitPushAll() {
+            try {
+              execSync('git pull --rebase --autostash origin main', {stdio:'pipe'});
+              const status = execSync('git status --porcelain bot_log.txt bot_stats.json', {encoding:'utf8'}).trim();
+              if (!status) return;
+              execSync('git add bot_log.txt bot_stats.json', {stdio:'pipe'});
+              execSync('git commit -m "📊 به‌روزرسانی لاگ و آمار"', {stdio:'pipe'});
+              execSync('git push', {stdio:'pipe'});
+              log('📤 لاگ و آمار push شد');
+            } catch(e) {
+              err('خطا در push:', e.message);
+              try {
+                execSync('git pull --rebase --autostash origin main', {stdio:'pipe'});
+                execSync('git push', {stdio:'pipe'});
+              } catch(_) {}
+            }
+          }
+
+          const mainKeypad = {
+            rows: [{ buttons: [
+              { id: 'QUEUE_STATUS', type: 'Simple', button_text: '⏳ چقدر مونده؟' },
+              { id: 'HELP', type: 'Simple', button_text: '❓ راهنما' },
+              { id: 'CANCEL_REQUEST', type: 'Simple', button_text: '❌ لغو درخواست' }
+            ]}],
+            resize_keyboard: true, one_time_keyboard: false
+          };
+
+          async function processRequest(chatId, url, videoDuration) {
+            const startAll = Date.now();
+            let success = false;
+            let finalSize = 0;
+            let dlTime = 0;
+            try {
+              await sleep(Math.floor(Math.random() * 4000) + 1000);
+
+              let dlResult = null;
+              for (let attempt = 0; attempt < MAX_PROXY_RETRIES; attempt++) {
+                if (attempt > 0) {
+                  log(`🔄 تلاش مجدد (${attempt+1}/${MAX_PROXY_RETRIES})...`);
+                  await sendMessage(chatId, `🔄 تعویض پروکسی و تلاش مجدد (${attempt+1}/${MAX_PROXY_RETRIES})...`);
+                  if (!(await switchToRandomProxy('تلاش مجدد دانلود'))) {
+                    await sendMessage(chatId, '❌ هیچ پروکسی در دسترس نیست.');
+                    return;
+                  }
+                }
+                dlResult = await downloadYouTube(url);
+                if (dlResult && !dlResult.error) break;
+                if (dlResult?.stderr) {
+                  const errMsg = getErrorMessageFromStderr(dlResult.stderr);
+                  if (errMsg.includes('محدودیت جغرافیایی') || errMsg.includes('خصوصی') || errMsg.includes('ربات')) {
+                    await sendMessage(chatId, errMsg);
+                    stats.failedAttempts++;
+                    return;
+                  }
+                }
+              }
+
+              if (!dlResult || dlResult.error) {
+                stats.failedAttempts++;
+                await sendMessage(chatId, '❌ بعد از چندین تلاش دانلود ممکن نشد.');
+                if (priorityCredits.has(chatId)) {
+                  priorityCredits.set(chatId, (priorityCredits.get(chatId)||0) + 1);
+                } else {
+                  priorityCredits.set(chatId, 1);
+                }
+                await sendMessage(chatId, '🔄 دفعهٔ بعد لینک بدید، ۲۰ نوبت جلوتر قرار می‌گیرید.');
+                return;
+              }
+
+              let videoPath = dlResult.path;
+              dlTime = dlResult.time;
+
+              const compatPath = await makeCompatible(videoPath);
+              if (compatPath !== videoPath) { try { fs.unlinkSync(videoPath); } catch(_){}; videoPath = compatPath; }
+
+              const durationReal = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`, {encoding:'utf8'}).trim());
+              finalSize = fs.statSync(videoPath).size;
+              const finalMB = (finalSize/(1024*1024)).toFixed(1);
+
+              if (currentProxy) {
+                const pStats = proxyStats.get(currentProxy) || { speeds:[], failures:0, lastUsed: Date.now() };
+                pStats.speeds.push(finalSize / dlTime);
+                if (pStats.speeds.length > 5) pStats.speeds.shift();
+                pStats.lastUsed = Date.now();
+                proxyStats.set(currentProxy, pStats);
+              }
+
+              userDailyUsage.set(chatId, (userDailyUsage.get(chatId)||0) + durationReal);
+              stats.totalBytes += finalSize;
+              stats.totalVideos++;
+              stats.totalDuration += durationReal;
+              stats.uniqueUsers.add(chatId);
+
+              await sendMessage(chatId, `✅ دانلود شد | حجم: ${finalMB}MB | زمان: ${dlTime}s`);
+              const baseName = path.basename(videoPath, path.extname(videoPath));
+              await processAndSendVideo(chatId, videoPath, baseName);
+
+              try { fs.unlinkSync(videoPath); } catch(_){}
+              success = true;
+              priorityCredits.delete(chatId);
+            } catch(e) {
+              err('خطای غیرمنتظره:', e.message);
+              await sendMessage(chatId, '❌ خطایی رخ داد.');
+              stats.failedAttempts++;
+            } finally {
+              const totalTime = (Date.now() - startAll) / 1000;
+              if (success) {
+                recentTimes.push(totalTime);
+                if (recentTimes.length > 5) recentTimes.shift();
+                saveStatsToFile();
+                gitPushAll();
+
+                const speed = finalSize / dlTime;
+                if (finalSize > SMALL_FILE_BYTES && speed < MIN_SPEED_BYTES) {
+                  await switchToRandomProxy('سرعت نامطلوب بعد از دانلود');
+                  consecutiveSuccess = 0;
+                } else {
+                  consecutiveSuccess++;
+                  if (consecutiveSuccess >= 3) {
+                    await switchToRandomProxy('3 دانلود موفق متوالی (تنوع)');
+                    consecutiveSuccess = 0;
+                  }
+                }
+              } else {
+                await switchToRandomProxy('شکست دانلود');
+                consecutiveSuccess = 0;
+              }
+              processNext();
+            }
+          }
+
+          async function processNext() {
+            if (queue.length === 0) { isProcessing = false; return; }
+            isProcessing = true;
+            const next = queue.shift();
+            await sendMessage(next.chatId, '🔜 نوبت شما رسید! در حال دانلود...');
+            processRequest(next.chatId, next.url, next.duration);
+          }
+
+          function addToQueue(chatId, url, duration) {
+            if (queue.some(item => item.chatId === chatId)) {
+              sendMessage(chatId, '⚠️ شما قبلاً یک درخواست در صف دارید.');
+              return;
+            }
+            const credit = priorityCredits.get(chatId) || 0;
+            if (credit > 0) {
+              priorityCredits.set(chatId, credit - 1);
+              const advanced = Math.min(20, queue.length);
+              const pos = queue.length - advanced;
+              if (pos <= 0) {
+                queue.unshift({ chatId, url, duration });
+                sendMessage(chatId, '🎫 با اعتبار جبرانی، درخواست شما در صدر صف قرار گرفت.');
+              } else {
+                queue.splice(pos, 0, { chatId, url, duration });
+                sendMessage(chatId, `🎫 به‌دلیل خرابی قبلی، ${advanced} نوبت جلو افتادید.`);
+              }
+              if (!isProcessing) {
+                isProcessing = true;
+                processNext();
+              }
+              return;
+            }
+
+            if (!isProcessing) {
+              isProcessing = true;
+              sendMessage(chatId, '📥 شروع دانلود...');
+              processRequest(chatId, url, duration);
+              return;
+            }
+            if (queue.length >= MAX_QUEUE) { sendMessage(chatId, '⚠️ ظرفیت صف تکمیل است.'); return; }
+            queue.push({ chatId, url, duration });
+            const position = queue.length;
+            const avg = getAverageTime();
+            const estMin = Math.ceil((position * avg) / 60);
+            sendMessage(chatId, `🔢 شما نفر ${position} در صف هستید.\n⏱️ زمان انتظار تقریبی: ${estMin} دقیقه\nبرای لغو از دکمه زیر استفاده کنید.`, mainKeypad);
+          }
+
+          async function handleQueueStatus(chatId) {
+            const now = Date.now();
+            const last = rateLimitQueue.get(chatId) || 0;
+            if (now - last < 60000) return;
+            rateLimitQueue.set(chatId, now);
+            const idx = queue.findIndex(item => item.chatId === chatId);
+            if (idx === -1) { await sendMessage(chatId, 'ℹ️ درخواست فعالی ندارید.'); return; }
+            const position = idx + 1;
+            const avg = getAverageTime();
+            const estSec = Math.ceil(position * avg);
+            const estMin = Math.floor(estSec / 60);
+            const estRemSec = estSec % 60;
+            const timeText = estMin > 0 ? `${estMin} دقیقه و ${estRemSec} ثانیه` : `${estSec} ثانیه`;
+            await sendMessage(chatId, `📍 شما نفر ${position} در صف هستید.\n⏳ حدود ${timeText} دیگر نوبت شماست.`);
+          }
+
+          async function handleCancelRequest(chatId) {
+            const idx = queue.findIndex(item => item.chatId === chatId);
+            if (idx !== -1) {
+              queue.splice(idx, 1);
+              await sendMessage(chatId, '❌ درخواست شما لغو شد. می‌تونید لینک جدید بفرستید.');
+              log(`🚫 کاربر ${chatId} درخواست خود را لغو کرد.`);
+            } else if (isProcessing) {
+              await sendMessage(chatId, '⚠️ درخواست شما در حال پردازش است و قابل لغو نیست.');
+            } else {
+              await sendMessage(chatId, 'ℹ️ درخواست فعالی ندارید.');
+            }
+          }
+
+          async function handleHelp(chatId) {
+            const helpText = 
+              'راهنمای ربات دانلود یوتیوب\n\n' +
+              '(1) یک ویدیو در یوتیوب پیدا کنید.\n' +
+              '(2) لینک کامل ویدیو را کپی کنید و در همین چت بفرستید.\n' +
+              '(3) ربات مدت ویدیو را بررسی می‌کند (حداکثر ۱.۵ ساعت) و در صورت تأیید، دانلود را شروع می‌کند.\n' +
+              '(4) در صورت شلوغ بودن، درخواست شما در صف قرار می‌گیرد و می‌توانید با دکمه «لغو درخواست» آن را کنسل کنید.\n' +
+              '(5) پس از دانلود، لینک‌های مستقیم قطعات ویدیو (۹۰ مگابایتی) برای شما ارسال می‌شود. می‌توانید مستقیماً از سرور گیت‌هاب دانلود کنید.\n\n' +
+              '🔄 جبران خرابی:\n' +
+              'اگر دانلود برخی قطعات ناموفق باشد، دفعهٔ بعد ۲۰ نوبت در صف جلو می‌افتید.\n\n' +
+              'محدودیت‌ها:\n- هر ویدیو حداکثر ۱.۵ ساعت\n- هر کاربر مجموعاً ۱.۵ ساعت در این بازه (۶ ساعت)\n\n' +
+              'کانال رسمی ما در روبیکا:\nhttps://rubika.ir/joinc/EIJHJDBI0JVRYRXAUOPHHLSQFFKWQBCB\n\n' +
+              'با فرستادن لینک شروع کنید!';
+            await sendMessage(chatId, helpText);
+          }
+
+          // ======================== اجرای اصلی ========================
+          (async () => {
+            const me = await api('getMe');
+            if (!me?.data?.bot?.username) { err('توکن نامعتبر'); process.exit(1); }
+            log('✅ ربات:', me.data.bot.username);
+
+            proxies = fs.readFileSync(PROXY_FILE, 'utf8').split('\n').map(l=>l.trim()).filter(l=>/^(vless|trojan|ss|vmess):\/\//.test(l));
+            if (proxies.length === 0) { err('هیچ پروکسی وجود ندارد'); process.exit(1); }
+            log(`${proxies.length} پروکسی خوب`);
+
+            if (!(await switchToRandomProxy('شروع ربات'))) { err('❌ هیچ پروکسی سالمی یافت نشد'); process.exit(1); }
+
+            // پاکسازی پیام‌های قدیمی
+            log('🧹 پاکسازی پیام‌های قدیمی...');
+            let offset = null;
+            while (true) {
+              const res = await api('getUpdates', { limit: 100, offset_id: offset });
+              const updates = res?.data?.updates;
+              if (!updates || updates.length === 0) break;
+              offset = res.data.next_offset_id;
+              if (!offset) break;
+            }
+            log('✅ تاریخچه پاک شد');
+
+            if (!fs.existsSync(STATS_FILE)) { saveStatsToFile(); gitPushAll(); }
+            const sentHelp = new Set();
+            const DEADLINE_END = Date.now() + 19740 * 1000;
+            const backupPushInterval = setInterval(() => { saveStatsToFile(); gitPushAll(); }, 10 * 60 * 1000);
+
+            while (Date.now() < DEADLINE_END) {
+              try {
+                const res = await api('getUpdates', { limit: 10, offset_id: offset });
+                if (res.error) { log('⚠️ خطای API:', res.message || res.raw); await sleep(5000); continue; }
+                const updates = res?.data?.updates;
+                if (!updates || updates.length === 0) { await sleep(4000); continue; }
+
+                for (const u of updates) {
+                  if (u.type !== 'NewMessage') continue;
+                  const chatId = u.chat_id;
+                  const msg = u.new_message;
+                  const buttonId = msg.aux_data?.button_id;
+
+                  if (buttonId === 'QUEUE_STATUS') { await handleQueueStatus(chatId); continue; }
+                  if (buttonId === 'HELP') { await handleHelp(chatId); continue; }
+                  if (buttonId === 'CANCEL_REQUEST') { await handleCancelRequest(chatId); continue; }
+
+                  if (!msg?.text) continue;
+                  const text = msg.text.trim();
+
+                  if (ADMIN_SECRET && text === ADMIN_SECRET) {
+                    adminUsers.add(chatId);
+                    await sendMessage(chatId, '🔑 دسترسی ادمین فعال شد. محدودیت‌ها برداشته شد.');
+                    continue;
+                  }
+
+                  const ytReg = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([\w-]+)/;
+                  const m = text.match(ytReg);
+                  if (!m) {
+                    if (!sentHelp.has(chatId)) { await sendMessage(chatId, '👋 سلام! لینک یوتیوب رو بفرست.', mainKeypad); sentHelp.add(chatId); }
+                    continue;
+                  }
+
+                  const videoUrl = m[0];
+                  log(`🎬 درخواست از ${chatId}: ${videoUrl}`);
+
+                  const info = await getRealVideoInfo(videoUrl);
+                  if (info.error) {
+                    const errMsg = getErrorMessageFromStderr(info.stderr);
+                    await sendMessage(chatId, errMsg);
+                    continue;
+                  }
+                  if (!info.duration) {
+                    await sendMessage(chatId, '⚠️ نتوانستم اطلاعات ویدیو را دریافت کنم.');
+                    continue;
+                  }
+
+                  const videoDuration = info.duration;
+                  const estimatedMB = info.size ? (info.size/(1024*1024)).toFixed(1) : 'نامشخص';
+                  log(`📺 اطلاعات ویدیو: ${Math.floor(videoDuration/60)}دقیقه, حجم ۴۸۰p: ${estimatedMB}MB`);
+
+                  if (!adminUsers.has(chatId)) {
+                    if (videoDuration > MAX_DURATION) {
+                      await sendMessage(chatId, `⚠️ مدت ویدیو (${Math.floor(videoDuration/60)} دقیقه) بیش از ۱.۵ ساعت مجاز است.`);
+                      continue;
+                    }
+                    const used = userDailyUsage.get(chatId) || 0;
+                    const remaining = DAILY_LIMIT - used;
+                    if (videoDuration > remaining) {
+                      await sendMessage(chatId, `⚠️ شما امروز ${Math.floor(used/60)} دقیقه دانلود کرده‌اید. سهمیهٔ باقی‌مانده: ${Math.floor(remaining/60)} دقیقه.`);
+                      continue;
+                    }
+                  }
+
+                  addToQueue(chatId, videoUrl, videoDuration);
+                }
+
+                if (res.data?.next_offset_id) offset = res.data.next_offset_id;
+              } catch(e) { err('حلقه اصلی:', e.message); await sleep(5000); }
+            }
+
+            clearInterval(backupPushInterval);
+            saveStatsToFile();
+            gitPushAll();
+
+            // حذف تمام مخازن موقت ساخته شده
+            log('🧹 حذف مخازن موقت...');
+            for (const repo of allTempRepos) {
+              await deleteTempRepo(repo.fullName);
+            }
+            log('✅ تمام مخازن موقت حذف شدند.');
+            if (xrayProc) xrayProc.kill();
+            log('⏹️ ربات خاموش شد');
+          })();
+          ENDSCRIPT
+
+          timeout 19740 node agent.cjs
