@@ -1,146 +1,113 @@
-name: 🧪 تست آپلود مستقیم گیت‌هاب (Release API)
+name: 🧪 تست آپلود مستقیم و ثبت لینک
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  test_and_record:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     permissions:
-      contents: write      # برای ساخت Release و آپلود asset لازمه
+      contents: write
     steps:
       - name: 📥 دریافت کد
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}   # برای پوش کردن فایل
 
-      - name: 🚀 تست ایجاد Release و آپلود فایل ۱۰MB
+      - name: 🚀 اجرای تست و ثبت نتیجه
         run: |
-          cat > test_upload.cjs << 'ENDSCRIPT'
+          cat > run_test.cjs << 'ENDSCRIPT'
           const { execSync } = require('child_process');
           const fs = require('fs');
-          const path = require('path');
 
-          // ========== تنظیمات ==========
-          const GITHUB_TOKEN = process.env.GITHUB_TOKEN;   // توکن خودکار
-          const REPO = process.env.GITHUB_REPOSITORY;      // "owner/repo"
-          const API_BASE = 'https://api.github.com';
-          const FILE_SIZE_MB = 10;
+          const TOKEN = process.env.GITHUB_TOKEN;
+          const REPO = process.env.GITHUB_REPOSITORY;
+          const SIZE_MB = 10;
 
-          // ========== ابزارهای کمکی ==========
-          function log(...args) { console.log(`[${new Date().toISOString().substring(0,19)}]`, ...args); }
+          function log(msg) { console.log(`[${new Date().toISOString().substr(0,19)}] ${msg}`); }
 
-          async function apiRequest(method, url, data = null, extraHeaders = {}) {
-            const headers = {
-              'Authorization': `token ${GITHUB_TOKEN}`,
-              'Accept': 'application/vnd.github.v3+json',
-              ...extraHeaders
-            };
-            const options = { method, headers };
-            if (data) {
-              options.body = JSON.stringify(data);
-              headers['Content-Type'] = 'application/json';
-            }
-            const res = await fetch(url, options);
-            const status = res.status;
-            const respData = await res.json().catch(() => ({}));
-            if (status >= 400) {
-              throw new Error(`GitHub API error (${status}): ${JSON.stringify(respData)}`);
-            }
-            return { status, data: respData, response: res };
-          }
-
-          // ========== ساخت فایل تصادفی ==========
-          function createRandomFile(filePath, sizeMB) {
-            const sizeBytes = sizeMB * 1024 * 1024;
-            const chunk = Buffer.allocUnsafe(1024 * 1024); // 1MB buffer
-            const fd = fs.openSync(filePath, 'w');
-            for (let written = 0; written < sizeBytes; written += chunk.length) {
-              // هر بار buffer رو با داده تصادفی پر کن
-              for (let i = 0; i < chunk.length; i++) chunk[i] = Math.floor(Math.random() * 256);
-              const toWrite = Math.min(chunk.length, sizeBytes - written);
-              fs.writeSync(fd, chunk, 0, toWrite);
-            }
-            fs.closeSync(fd);
-            log(`📁 فایل تصادفی ${sizeMB} مگابایتی ساخته شد: ${filePath}`);
-          }
-
-          // ========== اجرای اصلی ==========
+          // ================ تابع اصلی ================
           (async () => {
-            if (!GITHUB_TOKEN) { log('❌ توکن گیت‌هاب یافت نشد.'); process.exit(1); }
             const [owner, repo] = REPO.split('/');
-
-            // ۱. ساخت Release جدید
-            const tag = `test-upload-${Date.now()}`;
-            const releaseName = `🧪 تست آپلود مستقیم (${new Date().toISOString().substring(0,19)})`;
-            log(`🏷️ ساختن Release با tag: ${tag}`);
-
-            const createRes = await apiRequest('POST', `${API_BASE}/repos/${owner}/${repo}/releases`, {
-              tag_name: tag,
-              name: releaseName,
-              body: 'این یک Release موقت برای تست لینک مستقیم است.',
-              draft: false,
-              prerelease: true
-            });
-
-            const releaseId = createRes.data.id;
-            const uploadUrl = createRes.data.upload_url.replace('{?name,label}', '');
-            log(`✅ Release ساخته شد (ID: ${releaseId})`);
-
-            // ۲. ساخت فایل تصادفی ۱۰MB
-            const testFile = '/tmp/test_10mb.bin';
-            createRandomFile(testFile, FILE_SIZE_MB);
-
-            // ۳. آپلود فایل به عنوان asset
-            const assetName = 'test_10mb_random.bin';
-            log(`📤 آپلود فایل ${assetName}...`);
-
-            const stats = fs.statSync(testFile);
-            const fileBuffer = fs.readFileSync(testFile);
-
-            // آپلود asset (مطابق مستندات گیت‌هاب)
-            const uploadHeaders = {
-              'Content-Type': 'application/octet-stream',
+            const api = async (url, opts = {}) => {
+              const hdrs = { Authorization: `token ${TOKEN}`, Accept: 'application/vnd.github.v3+json', ...opts.headers };
+              const res = await fetch(url, { ...opts, headers: hdrs });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(`API error ${res.status}: ${JSON.stringify(data)}`);
+              return data;
             };
-            const assetUrl = `${uploadUrl}?name=${encodeURIComponent(assetName)}`;
-            const assetRes = await fetch(assetUrl, {
+
+            // ۱. ساخت فایل تصادفی
+            const filePath = '/tmp/test_file.bin';
+            {
+              const chunk = Buffer.allocUnsafe(1024 * 1024);
+              const fd = fs.openSync(filePath, 'w');
+              for (let written = 0; written < SIZE_MB * 1024 * 1024; written += chunk.length) {
+                for (let i = 0; i < chunk.length; i++) chunk[i] = Math.floor(Math.random() * 256);
+                fs.writeSync(fd, chunk, 0, Math.min(chunk.length, SIZE_MB * 1024 * 1024 - written));
+              }
+              fs.closeSync(fd);
+            }
+            log(`فایل ${SIZE_MB}MB ساخته شد.`);
+
+            // ۲. ساخت release
+            const tag = `test-${Date.now()}`;
+            log(`ساخت release با tag=${tag} ...`);
+            const rel = await api(`https://api.github.com/repos/${owner}/${repo}/releases`, {
+              method: 'POST',
+              body: JSON.stringify({
+                tag_name: tag,
+                name: 'تست لینک مستقیم',
+                body: 'Release موقت برای تست',
+                draft: false,
+                prerelease: true
+              })
+            });
+            const uploadUrl = rel.upload_url.replace('{?name,label}', '');
+            log('Release ساخته شد.');
+
+            // ۳. آپلود asset
+            const assetName = 'test_10mb.bin';
+            log('در حال آپلود asset...');
+            const buf = fs.readFileSync(filePath);
+            const assetRes = await fetch(`${uploadUrl}?name=${encodeURIComponent(assetName)}`, {
               method: 'POST',
               headers: {
-                'Authorization': `token ${GITHUB_TOKEN}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/octet-stream',
+                Authorization: `token ${TOKEN}`,
+                'Content-Type': 'application/octet-stream'
               },
-              body: fileBuffer,
+              body: buf
             });
+            const asset = await assetRes.json();
+            if (!assetRes.ok) throw new Error(`Upload fail: ${JSON.stringify(asset)}`);
+            const downloadUrl = asset.browser_download_url;
+            log(`✅ آپلود کامل. لینک: ${downloadUrl}`);
 
-            if (assetRes.status !== 201) {
-              const errBody = await assetRes.text();
-              throw new Error(`آپلود asset شکست خورد (${assetRes.status}): ${errBody}`);
-            }
+            // ۴. نوشتن نتیجه در فایل
+            const resultText = 
+              `زمان تست: ${new Date().toISOString()}\n` +
+              `حجم فایل: ${SIZE_MB} مگابایت\n` +
+              `لینک مستقیم دانلود:\n${downloadUrl}\n\n` +
+              `⚠️ لطفاً این لینک را در مرورگر یا دانلود منیجر امتحان کنید.\n` +
+              `(Release موقت است و تا پاک‌کردن دستی باقی می‌ماند.)\n`;
+            fs.writeFileSync('test_link.txt', resultText, 'utf8');
+            log('فایل test_link.txt ایجاد شد.');
 
-            const assetData = await assetRes.json();
-            const downloadUrl = assetData.browser_download_url;
-
-            log(`🎉 آپلود موفقیت‌آمیز!`);
-            log(`🔗 لینک مستقیم دانلود: ${downloadUrl}`);
-            console.log('\n==================================================');
-            console.log('👇👇 روی این لینک کلیک کن / در مرورگر باز کن:');
-            console.log(downloadUrl);
-            console.log('==================================================\n');
-
-            // ۴. (اختیاری) ذخیره اطلاعات برای حذف بعدی
-            const info = {
-              releaseId,
-              assetId: assetData.id,
-              downloadUrl,
-              tag
-            };
-            fs.writeFileSync('/tmp/release_info.json', JSON.stringify(info, null, 2));
-            log('📄 اطلاعات در /tmp/release_info.json ذخیره شد (برای حذف احتمالی)');
-            log('⚠️ این Release به‌طور خودکار حذف نمی‌شود. می‌توانید بعداً دستی پاک کنید.');
+            // ۵. پوش کردن فایل به ریپو
+            execSync('git config user.name "github-actions[bot]"', {stdio:'pipe'});
+            execSync('git config user.email "github-actions[bot]@users.noreply.github.com"', {stdio:'pipe'});
+            execSync('git add test_link.txt', {stdio:'pipe'});
+            try { execSync('git commit -m "📎 ثبت لینک تست مستقیم"', {stdio:'pipe'}); } catch(e) {}
+            execSync('git push', {stdio:'pipe'});
+            log('📤 فایل test_link.txt با موفقیت پوش شد. اکنون در ریپو قابل مشاهده است.');
           })().catch(err => {
-            console.error('❌ خطا:', err);
+            console.error('❌ شکست:', err.message);
+            // حتی در صورت خطا، فایل خطا رو هم می‌نویسیم
+            fs.writeFileSync('test_link.txt', `❌ خطا رخ داد:\n${err.message}\nلطفاً لاگ Actions را بررسی کنید.`, 'utf8');
+            execSync('git add test_link.txt && git commit -m "ثبت خطای تست" && git push', {stdio:'pipe'});
             process.exit(1);
           });
           ENDSCRIPT
 
-          node test_upload.cjs
+          node run_test.cjs
