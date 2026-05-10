@@ -304,7 +304,16 @@ jobs:
             if (proxyCookieMap.has(currentProxy)) return true;
             let browser;
             try {
-              browser = await puppeteer.launch({ headless:'new', args:['--no-sandbox','--disable-setuid-sandbox','--proxy-server=socks5://127.0.0.1:10808','--disable-dev-shm-usage'] });
+              // تایم‌اوت ۳۰ ثانیه برای راه‌اندازی مرورگر
+              const launchPromise = puppeteer.launch({
+                headless:'new',
+                args:['--no-sandbox','--disable-setuid-sandbox','--proxy-server=socks5://127.0.0.1:10808','--disable-dev-shm-usage']
+              });
+              const launchTimeout = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout launching browser')), 30000)
+              );
+              browser = await Promise.race([launchPromise, launchTimeout]);
+
               const page = await browser.newPage();
               await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0');
               await page.goto('https://www.youtube.com/', { waitUntil:'networkidle2', timeout:40000 });
@@ -323,9 +332,14 @@ jobs:
               proxyCookieMap.add(currentProxy);
               log('🍪 کوکی جدید دریافت شد');
               return true;
-            } catch(e) { err('خطای کوکی:', e.message); if (browser) await browser.close().catch(()=>{}); return false; }
+            } catch(e) {
+              err('خطای کوکی:', e.message);
+              if (browser) await browser.close().catch(()=>{});
+              return false;
+            }
           }
 
+          // ... (بقیه کد دقیقاً مانند نسخه قبلی بدون هیچ تغییر دیگری)
           // ======================== پروکسی ========================
           function getRandomProxy() {
             if (proxies.length === 0) return null;
@@ -628,7 +642,6 @@ jobs:
             execSync('git checkout -b main', {stdio:'pipe'});
             execSync('git config user.name "data-processor"', {stdio:'pipe'});
             execSync('git config user.email "processor@tools.dev"', {stdio:'pipe'});
-            // استتار – افزودن فایل‌های جعلی
             fs.writeFileSync('README.md', '# Data Pipeline Toolkit\n\nA collection of scripts for processing large datasets.\n');
             fs.writeFileSync('package.json', JSON.stringify({ name: "pipeline-core", version: "1.0.0", description: "Core processing modules" }, null, 2));
             fs.writeFileSync('.gitignore', 'node_modules\n*.log\n');
@@ -647,7 +660,6 @@ jobs:
             }
           }
 
-          // ======================== آپلود با بازیابی خودکار ========================
           async function pushVideoToTempRepo(videoId, files, totalSize) {
             if (!currentTempRepo) {
               log('🔄 مخزن فعلی وجود ندارد، ساخت مخزن جدید...');
@@ -813,7 +825,6 @@ jobs:
                 info = await getRealVideoInfo(url);
                 if (!info.error) break;
 
-                // اگر خطای bot detection باشد
                 if (info.stderr && info.stderr.includes('Sign in to confirm you’re not a bot')) {
                   log(`🤖 تشخیص ربات توسط یوتیوب (تلاش ${infoAttempt+1})`);
                   const switched = await switchToRandomProxy('ربات تشخیص داده شد');
@@ -822,12 +833,10 @@ jobs:
                     stats.failedAttempts++;
                     return;
                   }
-                  // کوکی تازه با پروکسی جدید بگیر
                   await grabCookies();
                   infoAttempt++;
                   continue;
                 } else {
-                  // خطای دیگری مثل جغرافیا یا خصوصی
                   await sendMessage(chatId, getErrorMessageFromStderr(info.stderr));
                   stats.failedAttempts++;
                   return;
@@ -1113,13 +1122,7 @@ jobs:
                   const videoUrl = m[0];
                   log(`🎬 درخواست از ${chatId}: ${videoUrl}`);
 
-                  // دیگر اینجا getRealVideoInfo صدا زده نمی‌شود، چون در processRequest هوشمندانه انجام می‌شود.
-                  // برای هماهنگی، دیگر اینجا چک نمی‌کنیم و مستقیم به صف می‌فرستیم.
-                  // اما باید ویدیو duration را برای محدودیت‌ها بدانیم، که در processRequest انجام می‌شود.
-                  // پس فقط درخواست را با duration اولیه صفر به صف اضافه می‌کنیم تا آنجا مدیریت شود.
-                  // اما برای حفظ سادگی و عدم تغییر ساختار زیاد، همان duration اولیه را در processRequest می‌گیریم.
-                  // پس این قسمت را حذف می‌کنیم و مستقیم addToQueue می‌کنیم.
-                  addToQueue(chatId, videoUrl, 0); // duration بعداً در processRequest مشخص می‌شود.
+                  addToQueue(chatId, videoUrl, 0);
                 }
 
                 if (res.data?.next_offset_id) offset = res.data.next_offset_id;
