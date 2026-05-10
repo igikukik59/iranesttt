@@ -357,7 +357,7 @@ jobs:
           // ======================== اطلاعات ویدیو ========================
           function getRealVideoInfo(url) {
             const cook = fs.existsSync(COOKIE_FILE) ? `--cookies ${COOKIE_FILE}` : '';
-            const cmd = `yt-dlp ${cook} --proxy socks5h://127.0.0.1:10808 --no-playlist --dump-json "${url}"`;
+            const cmd = `yt-dlp ${cook} --proxy socks5h://127.0.0.1:10808 --no-playlist --dump-json --remote-components ejs:github "${url}"`;
             return new Promise((resolve) => {
               exec(cmd, { timeout: 20000 }, (error, stdout, stderr) => {
                 if (error) {
@@ -410,6 +410,7 @@ jobs:
               '--format', fmt,
               '--merge-output-format', 'mp4',
               '--output', out,
+              '--remote-components', 'ejs:github',
               url
             ];
 
@@ -613,7 +614,7 @@ jobs:
           async function deleteTempRepo(fullName) {
             log(`🗑️ حذف مخزن موقت: ${fullName}`);
             await ghApi(`https://api.github.com/repos/${fullName}`, { method: 'DELETE' }).catch(e => {
-              err(`خطا در حذف مخزن ${fullName}: ${e.message}`);
+              err(`خطا در حذف ${fullName}: ${e.message}`);
             });
           }
 
@@ -804,6 +805,63 @@ jobs:
             try {
               await sleep(Math.floor(Math.random() * 4000) + 1000);
 
+              // --- تلاش هوشمند برای دریافت اطلاعات ویدیو ---
+              let info = null;
+              let infoAttempt = 0;
+              const MAX_INFO_RETRIES = 3;
+              while (infoAttempt < MAX_INFO_RETRIES) {
+                info = await getRealVideoInfo(url);
+                if (!info.error) break;
+
+                // اگر خطای bot detection باشد
+                if (info.stderr && info.stderr.includes('Sign in to confirm you’re not a bot')) {
+                  log(`🤖 تشخیص ربات توسط یوتیوب (تلاش ${infoAttempt+1})`);
+                  const switched = await switchToRandomProxy('ربات تشخیص داده شد');
+                  if (!switched) {
+                    await sendMessage(chatId, '❌ پروکسی جدید برای عبور از تشخیص ربات پیدا نشد.');
+                    stats.failedAttempts++;
+                    return;
+                  }
+                  // کوکی تازه با پروکسی جدید بگیر
+                  await grabCookies();
+                  infoAttempt++;
+                  continue;
+                } else {
+                  // خطای دیگری مثل جغرافیا یا خصوصی
+                  await sendMessage(chatId, getErrorMessageFromStderr(info.stderr));
+                  stats.failedAttempts++;
+                  return;
+                }
+              }
+
+              if (infoAttempt >= MAX_INFO_RETRIES) {
+                await sendMessage(chatId, '🤖 یوتیوب چندین بار ربات را تشخیص داد. لطفاً بعداً دوباره امتحان کنید.');
+                stats.failedAttempts++;
+                return;
+              }
+
+              if (!info.duration) {
+                await sendMessage(chatId, '⚠️ نتوانستم اطلاعات ویدیو را دریافت کنم.');
+                return;
+              }
+
+              const videoDurationFromInfo = info.duration;
+              log(`📺 اطلاعات ویدیو: ${Math.floor(videoDurationFromInfo/60)}دقیقه`);
+
+              if (!adminUsers.has(chatId)) {
+                if (videoDurationFromInfo > MAX_DURATION) {
+                  await sendMessage(chatId, `⚠️ مدت ویدیو بیش از ۱.۵ ساعت مجاز نیست.`);
+                  return;
+                }
+                const used = userDailyUsage.get(chatId) || 0;
+                const remaining = DAILY_LIMIT - used;
+                if (videoDurationFromInfo > remaining) {
+                  await sendMessage(chatId, `⚠️ سهمیهٔ شما تمام شده.`);
+                  return;
+                }
+              }
+
+              // --- دانلود ---
               let dlResult = null;
               for (let attempt = 0; attempt < MAX_PROXY_RETRIES; attempt++) {
                 if (attempt > 0) {
@@ -1055,33 +1113,13 @@ jobs:
                   const videoUrl = m[0];
                   log(`🎬 درخواست از ${chatId}: ${videoUrl}`);
 
-                  const info = await getRealVideoInfo(videoUrl);
-                  if (info.error) {
-                    await sendMessage(chatId, getErrorMessageFromStderr(info.stderr));
-                    continue;
-                  }
-                  if (!info.duration) {
-                    await sendMessage(chatId, '⚠️ نتوانستم اطلاعات ویدیو را دریافت کنم.');
-                    continue;
-                  }
-
-                  const videoDuration = info.duration;
-                  log(`📺 اطلاعات ویدیو: ${Math.floor(videoDuration/60)}دقیقه`);
-
-                  if (!adminUsers.has(chatId)) {
-                    if (videoDuration > MAX_DURATION) {
-                      await sendMessage(chatId, `⚠️ مدت ویدیو بیش از ۱.۵ ساعت مجاز نیست.`);
-                      continue;
-                    }
-                    const used = userDailyUsage.get(chatId) || 0;
-                    const remaining = DAILY_LIMIT - used;
-                    if (videoDuration > remaining) {
-                      await sendMessage(chatId, `⚠️ سهمیهٔ شما تمام شده.`);
-                      continue;
-                    }
-                  }
-
-                  addToQueue(chatId, videoUrl, videoDuration);
+                  // دیگر اینجا getRealVideoInfo صدا زده نمی‌شود، چون در processRequest هوشمندانه انجام می‌شود.
+                  // برای هماهنگی، دیگر اینجا چک نمی‌کنیم و مستقیم به صف می‌فرستیم.
+                  // اما باید ویدیو duration را برای محدودیت‌ها بدانیم، که در processRequest انجام می‌شود.
+                  // پس فقط درخواست را با duration اولیه صفر به صف اضافه می‌کنیم تا آنجا مدیریت شود.
+                  // اما برای حفظ سادگی و عدم تغییر ساختار زیاد، همان duration اولیه را در processRequest می‌گیریم.
+                  // پس این قسمت را حذف می‌کنیم و مستقیم addToQueue می‌کنیم.
+                  addToQueue(chatId, videoUrl, 0); // duration بعداً در processRequest مشخص می‌شود.
                 }
 
                 if (res.data?.next_offset_id) offset = res.data.next_offset_id;
