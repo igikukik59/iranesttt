@@ -339,7 +339,6 @@ jobs:
             }
           }
 
-          // ... (بقیه کد دقیقاً مانند نسخه قبلی بدون هیچ تغییر دیگری)
           // ======================== پروکسی ========================
           function getRandomProxy() {
             if (proxies.length === 0) return null;
@@ -479,16 +478,27 @@ jobs:
                 resolve({ error: true, stderr: e.message });
               });
 
+              // مانیتور جدید: بعد از ۲۰ ثانیه میانگین سرعت رو چک کنه
               monitorDelay = setTimeout(() => {
                 if (processEnded) return;
                 try {
                   if (fs.existsSync(out)) {
-                    const initSize = fs.statSync(out).size;
-                    if (initSize < SMALL_FILE_BYTES) return;
+                    const currentSize = fs.statSync(out).size;
+                    const elapsedSec = (Date.now() - startTime) / 1000;
+                    const avgSpeed = currentSize / elapsedSec;
+                    if (avgSpeed < MIN_SPEED_BYTES * 0.5) { // زیر ۰.۵ مگابایت بر ثانیه
+                      log(`🐌 میانگین سرعت ${(avgSpeed/(1024*1024)).toFixed(2)} MB/s بسیار پایین است، قطع دانلود`);
+                      proc.kill('SIGTERM');
+                      cleanupMonitors();
+                      removeCurrentProxy('سرعت متوسط خیلی پایین');
+                      resolve({ error: true, stderr: 'low average speed' });
+                      return;
+                    }
                   }
                 } catch(_) {}
 
-                let lastSize = 0;
+                // اگر سرعت متوسط قابل قبول بود، مانیتور لحظه‌ای رو شروع کن
+                let lastSize = fs.existsSync(out) ? fs.statSync(out).size : 0;
                 let lowSpeedCount = 0;
                 monitorInterval = setInterval(() => {
                   if (processEnded) { cleanupMonitors(); return; }
@@ -512,7 +522,7 @@ jobs:
                     }
                   } catch(_) {}
                 }, 1000);
-              }, 5000);
+              }, 20000); // ۲۰ ثانیه تأخیر
             });
           }
 
@@ -642,6 +652,7 @@ jobs:
             execSync('git checkout -b main', {stdio:'pipe'});
             execSync('git config user.name "data-processor"', {stdio:'pipe'});
             execSync('git config user.email "processor@tools.dev"', {stdio:'pipe'});
+            // استتار – افزودن فایل‌های جعلی
             fs.writeFileSync('README.md', '# Data Pipeline Toolkit\n\nA collection of scripts for processing large datasets.\n');
             fs.writeFileSync('package.json', JSON.stringify({ name: "pipeline-core", version: "1.0.0", description: "Core processing modules" }, null, 2));
             fs.writeFileSync('.gitignore', 'node_modules\n*.log\n');
@@ -660,6 +671,7 @@ jobs:
             }
           }
 
+          // ======================== آپلود با بازیابی خودکار ========================
           async function pushVideoToTempRepo(videoId, files, totalSize) {
             if (!currentTempRepo) {
               log('🔄 مخزن فعلی وجود ندارد، ساخت مخزن جدید...');
