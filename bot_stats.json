@@ -1,9 +1,9 @@
 {
-  "totalDataMB": "8719.15",
-  "totalVideos": 199,
-  "totalDurationMinutes": "4642.1",
-  "uniqueUsers": 80,
-  "failedAttempts": 201,
+  "totalDataMB": "9019.87",
+  "totalVideos": 203,
+  "totalDurationMinutes": "4818.6",
+  "uniqueUsers": 83,
+  "failedAttempts": 205,
   "avgProcessingTimeSec": "90.0",
   "queueLength": 0,
   "currentProxy": "vless://6202b230-417c-4d8e-b624-0f71afa9",
@@ -94,10 +94,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.40.150.238:2",
-      "avgSpeedMBps": "26.21",
-      "samples": 3,
+      "avgSpeedMBps": "24.15",
+      "samples": 4,
       "failures": 0,
-      "lastUsed": "2026-05-11T11:31:31.000Z"
+      "lastUsed": "2026-05-11T12:11:08.852Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.40.144.238:2",
@@ -185,10 +185,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@51.210.149.2:20",
-      "avgSpeedMBps": "8.87",
-      "samples": 2,
+      "avgSpeedMBps": "10.15",
+      "samples": 3,
       "failures": 0,
-      "lastUsed": "2026-05-11T10:07:02.460Z"
+      "lastUsed": "2026-05-11T12:10:00.085Z"
     },
     {
       "proxy": "vless://06ef598c-1555-4887-b3f9-08214a2f6792@104.20.6.134:44",
@@ -248,10 +248,10 @@
     },
     {
       "proxy": "trojan://humanity@172.64.152.23:443?path=/assignment&securit",
-      "avgSpeedMBps": "7.06",
-      "samples": 3,
+      "avgSpeedMBps": "8.11",
+      "samples": 4,
       "failures": 0,
-      "lastUsed": "2026-05-11T11:17:46.225Z"
+      "lastUsed": "2026-05-11T12:10:50.961Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@54.37.51.238:44",
@@ -339,10 +339,10 @@
     },
     {
       "proxy": "vless://06ef598c-1555-4887-b3f9-08214a2f6792@172.64.149.54:4",
-      "avgSpeedMBps": "16.94",
-      "samples": 2,
+      "avgSpeedMBps": "19.32",
+      "samples": 3,
       "failures": 0,
-      "lastUsed": "2026-05-11T10:37:15.458Z"
+      "lastUsed": "2026-05-11T12:13:20.357Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.74.118:4",
