@@ -1,5 +1,6 @@
 {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   "totalDataMB": "16838.51",
   "totalVideos": 307,
   "totalDurationMinutes": "9408.7",
@@ -12,9 +13,16 @@
   "uniqueUsers": 7,
   "failedAttempts": 10,
 >>>>>>> Stashed changes
+=======
+  "totalDataMB": "17064.04",
+  "totalVideos": 310,
+  "totalDurationMinutes": "9541.1",
+  "uniqueUsers": 137,
+  "failedAttempts": 320,
+>>>>>>> Stashed changes
   "avgProcessingTimeSec": "90.0",
-  "queueLength": 0,
-  "currentProxy": "vless://6202b230-417c-4d8e-b624-0f71afa9",
+  "queueLength": 1,
+  "currentProxy": "vless://394f6981-a782-4779-9a85-e6cf2293",
   "proxies": [
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.129.137.90:8",
@@ -138,10 +146,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@54.36.98.82:205",
-      "avgSpeedMBps": "6.48",
-      "samples": 3,
+      "avgSpeedMBps": "7.91",
+      "samples": 4,
       "failures": 0,
-      "lastUsed": "2026-05-11T13:14:06.924Z"
+      "lastUsed": "2026-05-11T14:55:04.095Z"
     },
     {
       "proxy": "trojan://6202b230-417c-4d8e-b624-0f71afa9c75d@freeyx.cloudfl",
@@ -281,10 +289,17 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@5.10.245.43:443",
+<<<<<<< Updated upstream
       "avgSpeedMBps": "15.68",
       "samples": 1,
       "failures": 0,
       "lastUsed": "2026-05-11T14:44:44.029Z"
+=======
+      "avgSpeedMBps": "20.21",
+      "samples": 5,
+      "failures": 0,
+      "lastUsed": "2026-05-11T14:54:44.647Z"
+>>>>>>> Stashed changes
     },
     {
       "proxy": "vless://8c4604ef-749c-4b56-adf1-7da405002a21@216.24.57.1:443",
@@ -294,11 +309,19 @@
       "lastUsed": "2026-05-11T14:49:33.526Z"
     },
     {
+<<<<<<< Updated upstream
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.40.153.238:2",
       "avgSpeedMBps": "17.94",
       "samples": 1,
       "failures": 0,
       "lastUsed": "2026-05-11T14:46:49.029Z"
+=======
+      "proxy": "trojan://humanity@172.64.152.23:443?path=/assignment&securit",
+      "avgSpeedMBps": "12.22",
+      "samples": 5,
+      "failures": 0,
+      "lastUsed": "2026-05-11T14:49:37.680Z"
+>>>>>>> Stashed changes
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@199.34.228.191:",
