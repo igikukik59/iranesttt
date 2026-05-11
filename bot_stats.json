@@ -1,9 +1,9 @@
 {
-  "totalDataMB": "6962.87",
-  "totalVideos": 262,
-  "totalDurationMinutes": "1687.8",
-  "uniqueUsers": 76,
-  "failedAttempts": 271,
+  "totalDataMB": "7079.71",
+  "totalVideos": 268,
+  "totalDurationMinutes": "1731.6",
+  "uniqueUsers": 79,
+  "failedAttempts": 278,
   "avgProcessingTimeSec": "90.0",
   "queueLength": 0,
   "currentProxy": "vless://6202b230-417c-4d8e-b624-0f71afa9",
@@ -24,10 +24,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@185.135.9.138:2",
-      "avgSpeedMBps": "7.21",
-      "samples": 4,
+      "avgSpeedMBps": "7.05",
+      "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T22:18:02.277Z"
+      "lastUsed": "2026-05-11T22:56:51.301Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@51.210.149.2:20",
@@ -66,10 +66,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.75.14:44",
-      "avgSpeedMBps": "8.40",
+      "avgSpeedMBps": "7.42",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T22:16:03.161Z"
+      "lastUsed": "2026-05-11T23:03:37.961Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@193.227.99.138:",
@@ -87,10 +87,10 @@
     },
     {
       "proxy": "trojan://humanity@104.18.32.47:443?security=tls&type=ws&sni=",
-      "avgSpeedMBps": "4.28",
+      "avgSpeedMBps": "4.06",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T22:28:47.721Z"
+      "lastUsed": "2026-05-11T22:57:21.998Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@159.223.24.65:4",
@@ -199,10 +199,10 @@
     },
     {
       "proxy": "vless://06ef598c-1555-4887-b3f9-08214a2f6792@172.64.149.54:4",
-      "avgSpeedMBps": "6.90",
+      "avgSpeedMBps": "6.26",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T22:42:37.105Z"
+      "lastUsed": "2026-05-11T22:57:48.472Z"
     },
     {
       "proxy": "vless://8dc7722c-2767-4eea-a28b-2f8daacc07e3@yesok42v2.ip4ex",
@@ -234,10 +234,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.129.14.56:84",
-      "avgSpeedMBps": "4.36",
-      "samples": 2,
+      "avgSpeedMBps": "4.00",
+      "samples": 3,
       "failures": 0,
-      "lastUsed": "2026-05-11T20:57:32.733Z"
+      "lastUsed": "2026-05-11T23:01:19.415Z"
     },
     {
       "proxy": "vless://06ef598c-1555-4887-b3f9-08214a2f6792@104.20.6.134:44",
@@ -290,10 +290,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@54.36.98.82:205",
-      "avgSpeedMBps": "5.05",
-      "samples": 1,
+      "avgSpeedMBps": "4.26",
+      "samples": 2,
       "failures": 0,
-      "lastUsed": "2026-05-11T20:24:44.857Z"
+      "lastUsed": "2026-05-11T23:00:12.358Z"
     },
     {
       "proxy": "vless://394f6981-a782-4779-9a85-e6cf22935d93@152.233.28.198:",
