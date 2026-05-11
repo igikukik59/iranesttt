@@ -1,9 +1,9 @@
 {
-  "totalDataMB": "16387.43",
-  "totalVideos": 301,
-  "totalDurationMinutes": "9143.9",
-  "uniqueUsers": 131,
-  "failedAttempts": 311,
+  "totalDataMB": "16688.15",
+  "totalVideos": 305,
+  "totalDurationMinutes": "9320.5",
+  "uniqueUsers": 133,
+  "failedAttempts": 315,
   "avgProcessingTimeSec": "90.0",
   "queueLength": 0,
   "currentProxy": "vless://6202b230-417c-4d8e-b624-0f71afa9",
@@ -45,10 +45,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.67.42:44",
-      "avgSpeedMBps": "12.40",
-      "samples": 3,
+      "avgSpeedMBps": "15.01",
+      "samples": 4,
       "failures": 0,
-      "lastUsed": "2026-05-11T13:44:36.048Z"
+      "lastUsed": "2026-05-11T14:20:12.723Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@199.34.228.191:",
@@ -66,10 +66,10 @@
     },
     {
       "proxy": "vless://a01daac7-1e65-4645-854d-b47d226f6b08@104.20.6.134:44",
-      "avgSpeedMBps": "15.48",
+      "avgSpeedMBps": "19.45",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T12:53:54.949Z"
+      "lastUsed": "2026-05-11T14:24:00.283Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@172.64.145.158:",
@@ -171,10 +171,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.75.14:44",
-      "avgSpeedMBps": "19.14",
-      "samples": 1,
+      "avgSpeedMBps": "21.71",
+      "samples": 2,
       "failures": 0,
-      "lastUsed": "2026-05-11T09:51:34.242Z"
+      "lastUsed": "2026-05-11T14:25:30.468Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.149.12.191:4",
@@ -423,10 +423,10 @@
     },
     {
       "proxy": "vless://8c4604ef-749c-4b56-adf1-7da405002a21@216.24.57.1:443",
-      "avgSpeedMBps": "24.38",
-      "samples": 3,
+      "avgSpeedMBps": "23.96",
+      "samples": 4,
       "failures": 0,
-      "lastUsed": "2026-05-11T13:39:57.343Z"
+      "lastUsed": "2026-05-11T14:19:45.450Z"
     },
     {
       "proxy": "vless://8c4604ef-749c-4b56-adf1-7da405002a21@216.24.57.1:443",
