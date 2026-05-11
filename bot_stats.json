@@ -1,11 +1,131 @@
 {
-  "totalDataMB": "0.00",
-  "totalVideos": 0,
-  "totalDurationMinutes": "0.0",
-  "uniqueUsers": 0,
-  "failedAttempts": 0,
+  "totalDataMB": "375.47",
+  "totalVideos": 20,
+  "totalDurationMinutes": "288.4",
+  "uniqueUsers": 10,
+  "failedAttempts": 20,
   "avgProcessingTimeSec": "90.0",
-  "queueLength": 0,
+  "queueLength": 3,
   "currentProxy": "vless://6202b230-417c-4d8e-b624-0f71afa9",
-  "proxies": []
+  "proxies": [
+    {
+      "proxy": "trojan://humanity@104.18.32.47:443?security=tls&type=ws&sni=",
+      "avgSpeedMBps": "1.75",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:37:15.309Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@104.18.13.149:2",
+      "avgSpeedMBps": "12.98",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:37:39.580Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@212.34.141.125:",
+      "avgSpeedMBps": "3.00",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:38:09.513Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.129.137.90:8",
+      "avgSpeedMBps": "3.15",
+      "samples": 2,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:39:22.305Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@108.165.216.138",
+      "avgSpeedMBps": "6.77",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:38:58.333Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.67.42:44",
+      "avgSpeedMBps": "6.37",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:39:51.973Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@199.34.228.191:",
+      "avgSpeedMBps": "6.76",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:40:19.253Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@209.94.90.238:2",
+      "avgSpeedMBps": "6.66",
+      "samples": 2,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:44:43.735Z"
+    },
+    {
+      "proxy": "vless://a01daac7-1e65-4645-854d-b47d226f6b08@104.20.6.134:44",
+      "avgSpeedMBps": "3.68",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:41:28.975Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@172.64.145.158:",
+      "avgSpeedMBps": "6.07",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:41:52.252Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.178.36:4",
+      "avgSpeedMBps": "3.11",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:42:21.638Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.178.79:8",
+      "avgSpeedMBps": "3.17",
+      "samples": 2,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:44:28.255Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.40.150.238:2",
+      "avgSpeedMBps": "5.61",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:43:15.584Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.40.144.238:2",
+      "avgSpeedMBps": "6.58",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:43:39.172Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@51.91.248.38:84",
+      "avgSpeedMBps": "3.23",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:44:09.620Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@91.193.58.112:4",
+      "avgSpeedMBps": "6.34",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:45:05.820Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.12.30.138:20",
+      "avgSpeedMBps": "5.96",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T09:45:31.447Z"
+    }
+  ]
 }
