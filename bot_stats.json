@@ -1,19 +1,19 @@
 {
-  "totalDataMB": "7079.71",
-  "totalVideos": 268,
-  "totalDurationMinutes": "1731.6",
-  "uniqueUsers": 79,
-  "failedAttempts": 278,
+  "totalDataMB": "7254.96",
+  "totalVideos": 277,
+  "totalDurationMinutes": "1797.3",
+  "uniqueUsers": 82,
+  "failedAttempts": 287,
   "avgProcessingTimeSec": "90.0",
   "queueLength": 0,
   "currentProxy": "vless://6202b230-417c-4d8e-b624-0f71afa9",
   "proxies": [
     {
       "proxy": "vless://ce069292-c8bf-40dd-a6b1-87818a1e64e9@104.18.40.152:4",
-      "avgSpeedMBps": "6.97",
-      "samples": 2,
+      "avgSpeedMBps": "6.67",
+      "samples": 3,
       "failures": 0,
-      "lastUsed": "2026-05-11T20:19:08.986Z"
+      "lastUsed": "2026-05-11T23:14:17.346Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.183.108:",
@@ -115,10 +115,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.74.34:44",
-      "avgSpeedMBps": "7.40",
-      "samples": 4,
+      "avgSpeedMBps": "7.11",
+      "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T22:17:49.630Z"
+      "lastUsed": "2026-05-11T23:08:35.245Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.178.79:8",
@@ -150,10 +150,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.40.153.238:2",
-      "avgSpeedMBps": "7.40",
+      "avgSpeedMBps": "6.57",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T22:16:19.468Z"
+      "lastUsed": "2026-05-11T23:13:16.520Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.67.21:44",
@@ -269,10 +269,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.129.137.90:8",
-      "avgSpeedMBps": "4.72",
+      "avgSpeedMBps": "4.32",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T21:34:04.940Z"
+      "lastUsed": "2026-05-11T23:06:31.836Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@5.10.245.43:443",
@@ -367,10 +367,10 @@
     },
     {
       "proxy": "vless://a01daac7-1e65-4645-854d-b47d226f6b08@104.20.6.134:44",
-      "avgSpeedMBps": "7.80",
+      "avgSpeedMBps": "6.72",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T22:30:01.721Z"
+      "lastUsed": "2026-05-11T23:07:19.973Z"
     },
     {
       "proxy": "trojan://humanity@www.multiplydose.com:443?security=tls&type",
@@ -381,10 +381,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@198.12.145.138:",
-      "avgSpeedMBps": "7.63",
-      "samples": 4,
+      "avgSpeedMBps": "7.39",
+      "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T21:47:58.047Z"
+      "lastUsed": "2026-05-11T23:07:32.232Z"
     },
     {
       "proxy": "vless://8c4604ef-749c-4b56-adf1-7da405002a21@8.6.112.0:2053?",
@@ -402,10 +402,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.67.42:44",
-      "avgSpeedMBps": "8.85",
-      "samples": 2,
+      "avgSpeedMBps": "8.14",
+      "samples": 3,
       "failures": 0,
-      "lastUsed": "2026-05-11T21:03:35.434Z"
+      "lastUsed": "2026-05-11T23:05:58.647Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@162.55.187.121:",
@@ -423,10 +423,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.177.206:",
-      "avgSpeedMBps": "4.37",
-      "samples": 2,
+      "avgSpeedMBps": "4.08",
+      "samples": 3,
       "failures": 0,
-      "lastUsed": "2026-05-11T21:58:54.627Z"
+      "lastUsed": "2026-05-11T23:12:04.773Z"
     },
     {
       "proxy": "vless://388a6c57-87e7-420b-afe2-b3eb670fd7da@104.17.138.160:",
@@ -451,10 +451,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.178.36:4",
-      "avgSpeedMBps": "3.57",
-      "samples": 2,
+      "avgSpeedMBps": "3.15",
+      "samples": 3,
       "failures": 0,
-      "lastUsed": "2026-05-11T22:18:59.930Z"
+      "lastUsed": "2026-05-11T23:14:55.425Z"
     }
   ]
 }
