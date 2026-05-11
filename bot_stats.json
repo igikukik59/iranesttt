@@ -1,12 +1,12 @@
 {
-  "totalDataMB": "7254.96",
-  "totalVideos": 277,
-  "totalDurationMinutes": "1797.3",
-  "uniqueUsers": 82,
-  "failedAttempts": 287,
+  "totalDataMB": "7332.85",
+  "totalVideos": 281,
+  "totalDurationMinutes": "1826.5",
+  "uniqueUsers": 83,
+  "failedAttempts": 291,
   "avgProcessingTimeSec": "90.0",
   "queueLength": 0,
-  "currentProxy": "vless://6202b230-417c-4d8e-b624-0f71afa9",
+  "currentProxy": "vless://ce069292-c8bf-40dd-a6b1-87818a1e",
   "proxies": [
     {
       "proxy": "vless://ce069292-c8bf-40dd-a6b1-87818a1e64e9@104.18.40.152:4",
@@ -171,10 +171,10 @@
     },
     {
       "proxy": "vless://388a6c57-87e7-420b-afe2-b3eb670fd7da@104.17.138.160:",
-      "avgSpeedMBps": "6.97",
+      "avgSpeedMBps": "6.49",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T22:32:51.835Z"
+      "lastUsed": "2026-05-11T23:16:14.535Z"
     },
     {
       "proxy": "trojan://humanity@172.64.152.23:443?path=/assignment&securit",
@@ -346,10 +346,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.149.12.191:4",
-      "avgSpeedMBps": "9.38",
-      "samples": 2,
+      "avgSpeedMBps": "8.27",
+      "samples": 3,
       "failures": 0,
-      "lastUsed": "2026-05-11T21:09:46.984Z"
+      "lastUsed": "2026-05-11T23:15:35.915Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@198.71.189.51:4",
@@ -423,10 +423,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.177.206:",
-      "avgSpeedMBps": "4.08",
-      "samples": 3,
+      "avgSpeedMBps": "3.86",
+      "samples": 4,
       "failures": 0,
-      "lastUsed": "2026-05-11T23:12:04.773Z"
+      "lastUsed": "2026-05-11T23:15:58.592Z"
     },
     {
       "proxy": "vless://388a6c57-87e7-420b-afe2-b3eb670fd7da@104.17.138.160:",
@@ -455,6 +455,13 @@
       "samples": 3,
       "failures": 0,
       "lastUsed": "2026-05-11T23:14:55.425Z"
+    },
+    {
+      "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@199.34.228.191:",
+      "avgSpeedMBps": "6.77",
+      "samples": 1,
+      "failures": 0,
+      "lastUsed": "2026-05-11T23:23:51.638Z"
     }
   ]
 }
