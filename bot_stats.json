@@ -1,12 +1,12 @@
 {
-  "totalDataMB": "13545.13",
-  "totalVideos": 252,
-  "totalDurationMinutes": "4301.8",
-  "uniqueUsers": 101,
-  "failedAttempts": 265,
+  "totalDataMB": "13813.88",
+  "totalVideos": 257,
+  "totalDurationMinutes": "4387.1",
+  "uniqueUsers": 105,
+  "failedAttempts": 272,
   "avgProcessingTimeSec": "90.0",
   "queueLength": 0,
-  "currentProxy": "none",
+  "currentProxy": "vless://6202b230-417c-4d8e-b624-0f71afa9",
   "proxies": [
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.129.137.90:8",
@@ -178,10 +178,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@154.211.8.138:2",
-      "avgSpeedMBps": "21.93",
+      "avgSpeedMBps": "19.18",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T19:11:20.048Z"
+      "lastUsed": "2026-05-11T19:16:23.385Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@104.18.13.149:2",
@@ -269,10 +269,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.183.108:",
-      "avgSpeedMBps": "9.34",
-      "samples": 4,
+      "avgSpeedMBps": "9.29",
+      "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T17:34:33.941Z"
+      "lastUsed": "2026-05-11T19:18:20.691Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.12.30.138:20",
@@ -353,10 +353,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@54.36.98.82:205",
-      "avgSpeedMBps": "9.59",
-      "samples": 1,
+      "avgSpeedMBps": "9.11",
+      "samples": 2,
       "failures": 0,
-      "lastUsed": "2026-05-11T16:19:45.397Z"
+      "lastUsed": "2026-05-11T19:16:45.542Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.149.12.191:4",
@@ -423,10 +423,10 @@
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.40.150.238:2",
-      "avgSpeedMBps": "19.74",
+      "avgSpeedMBps": "19.25",
       "samples": 5,
       "failures": 0,
-      "lastUsed": "2026-05-11T18:25:48.877Z"
+      "lastUsed": "2026-05-11T19:19:53.845Z"
     },
     {
       "proxy": "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@162.55.187.121:",
