@@ -32,7 +32,7 @@ jobs:
       - name: 🧹 پاک‌سازی حافظه
         run: |
           echo "پاکسازی فایل‌های موقت..."
-          rm -rf /tmp/downloaded_videos /tmp/downloaded_images /tmp/downloaded_files /tmp/video_chunks_* /tmp/xray_*.json /tmp/shot_* /tmp/sel_* /tmp/vid_* /tmp/img_* /tmp/scroll_* /tmp/fullshot_* /tmp/page_* 2>/dev/null
+          rm -rf /tmp/downloaded_videos /tmp/downloaded_images /tmp/downloaded_files /tmp/video_chunks_* /tmp/video_dl_* /tmp/xray_*.json /tmp/shot_* /tmp/sel_* /tmp/vid_* /tmp/img_* /tmp/scroll_* /tmp/fullshot_* /tmp/page_* 2>/dev/null
           df -h /tmp
 
       - name: 🤖 اجرای ربات (نسخه نهایی با آپلود GitHub)
@@ -170,7 +170,7 @@ jobs:
             } catch(e) { return false; }
           }
 
-          // ======================== Rubika API (retry) ========================
+          // ======================== Rubika API ========================
           const TOKEN = process.env.RUBIKA_BOT_TOKEN;
           const OWNER = process.env.RUBIKA_OWNER_CHAT_ID || '';
           const BASE = `https://botapi.rubika.ir/v3/${TOKEN}`;
@@ -413,12 +413,7 @@ jobs:
             }
           }
 
-          async function sendDownloadLink(chatId, link, caption = '') {
-            const text = caption ? `${caption}\n${link}` : link;
-            await sendMessage(chatId, text);
-          }
-
-          // ======================== کی‌پد کنترلی ========================
+          // ======================== کی‌پد کنترلی (دکمه جدید: لینک صفحه) ========================
           function buildControlKeypad() {
             return {
               rows: [
@@ -447,6 +442,9 @@ jobs:
                     { id: "ZOOM_IN",    type: "Simple", button_text: "🔍 زوم +" },
                     { id: "ZOOM_OUT",   type: "Simple", button_text: "🔍 زوم -" },
                     { id: "SCREENSHOT", type: "Simple", button_text: "📸 اسکرین‌شات" }
+                ]},
+                { buttons: [
+                    { id: "PAGE_LINK",  type: "Simple", button_text: "🔗 لینک صفحه" }  // دکمه جدید
                 ]},
                 { buttons: [
                     { id: "ENTER",       type: "Simple", button_text: "↵ Enter" },
@@ -792,7 +790,7 @@ jobs:
             });
           }
 
-          // ======================== استخراج متن با مارک‌داون ========================
+          // ======================== استخراج متن ========================
           async function extractVisibleText(page) {
             return await page.evaluate(() => {
               const walker = document.createTreeWalker(
@@ -826,7 +824,7 @@ jobs:
             });
           }
 
-          // ======================== دانلودها (چندرشته‌ای با aria2c) ========================
+          // ======================== دانلودها ========================
           async function downloadImage(url, referer) {
             const dir = '/tmp/downloaded_images';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -847,78 +845,93 @@ jobs:
             } catch(e) { err('دانلود فایل خطا:', e.message); return { ok: false }; }
           }
 
+          // ======================== دانلود ویدیو (اصلاح‌شده) ========================
           async function downloadVideo(url, type, referer, platform, pageUrl) {
-            const dir = '/tmp/downloaded_videos';
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            const timestamp = Date.now();
+            const downloadDir = `/tmp/video_dl_${Date.now()}`;
+            fs.mkdirSync(downloadDir, { recursive: true });
+            log(`📂 پوشه دانلود: ${downloadDir}`);
 
-            const ytDlpBaseArgs = [
+            // آرگومان‌های مشترک yt-dlp
+            const ytDlpArgs = [
               'yt-dlp',
               '--no-playlist',
-              '--playlist-items', '1',  // فقط اولین ویدیو
+              '--max-downloads', '1',                // فقط یک فایل، حل مشکل چندرسانه‌ای
               '--merge-output-format', 'mp4',
               '--force-ipv4',
-              "--user-agent", "'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'",
+              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
               '--extractor-args', 'youtube:player_client=android_vr',
               '--downloader', 'aria2c',
               '--downloader-args', 'aria2c:-x 16 -s 16 -k 1M',
-              '--proxy', 'socks5://127.0.0.1:10808'
-            ].join(' ');
+              '--proxy', 'socks5://127.0.0.1:10808',
+              '-o', path.join(downloadDir, '%(title).200s_%(id)s.%(ext)s') // الگوی پویا
+            ];
 
-            let lastError = '';
+            const execOptions = {
+              stdio: ['pipe', 'pipe', 'pipe'],
+              timeout: 600000,
+              encoding: 'utf8'
+            };
 
+            function runCmd(cmd) {
+              log('▶️ اجرای دستور:', cmd);
+              try {
+                const output = execSync(cmd, execOptions);
+                if (output) log('🟢 خروجی:', output.toString().substring(0, 500));
+                return { success: true };
+              } catch(e) {
+                const stderr = e.stderr?.toString() || '';
+                const stdout = e.stdout?.toString() || '';
+                log('🔴 خطا در اجرای فرمان:', stderr.substring(0, 500));
+                return { success: false, error: stderr || e.message, stdout };
+              }
+            }
+
+            // blob
             if (type === 'direct' && url.startsWith('blob:')) {
-              const outPath = path.join(dir, `video_${timestamp}_page.mp4`);
-              log(`📥 تلاش دانلود blob از صفحه: ${pageUrl}`);
-              try {
-                execSync(`${ytDlpBaseArgs} -o "${outPath}" "${pageUrl}"`, { stdio: 'pipe', timeout: 300000 });
-                log('✅ blob دانلود شد.');
-                return { ok: true, path: outPath };
-              } catch(e) {
-                lastError = e.stderr ? e.stderr.toString() : e.message;
-                log('❌ yt-dlp blob fail:', lastError);
-                return { ok: false, error: lastError };
+              const cmd = `${ytDlpArgs.join(' ')} "${pageUrl}"`;
+              const res = runCmd(cmd);
+              if (!res.success) return { ok: false, error: res.error, downloadDir };
+            }
+            // مستقیم غیر blob
+            else if (type === 'direct') {
+              const ariaOut = path.join(downloadDir, `video_${Date.now()}_aria.mp4`);
+              const ariaCmd = `aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${downloadDir}" --out="${path.basename(ariaOut)}" "${url}"`;
+              const ariaRes = runCmd(ariaCmd);
+              if (ariaRes.success) {
+                // aria2 خروجی را در ariaOut گذاشت (در پوشه دانلود)
+                if (fs.existsSync(ariaOut)) return { ok: true, path: ariaOut, downloadDir };
+                // شاید با اسم دیگری ذخیره کرده باشد
+                const files = fs.readdirSync(downloadDir);
+                if (files.length > 0) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir };
               }
+              // fallback to yt-dlp
+              log('🔁 تلاش با yt-dlp...');
+              const cmd = `${ytDlpArgs.join(' ')} "${pageUrl}"`;
+              const res = runCmd(cmd);
+              if (!res.success) return { ok: false, error: res.error, downloadDir };
+            }
+            // embed
+            else if (type === 'embed') {
+              const cmd = `${ytDlpArgs.join(' ')} "${url}"`;
+              const res = runCmd(cmd);
+              if (!res.success) return { ok: false, error: res.error, downloadDir };
+            } else {
+              return { ok: false, error: 'نوع ناشناخته', downloadDir };
             }
 
-            if (type === 'direct') {
-              const outPath = path.join(dir, `video_${timestamp}_${path.basename(new URL(url).pathname) || 'video.mp4'}`);
-              log(`📥 تلاش دانلود مستقیم: ${url}`);
-              try {
-                execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'pipe', timeout: 300000 });
-                log('✅ دانلود مستقیم موفق.');
-                return { ok: true, path: outPath };
-              } catch(e) {
-                lastError = e.stderr ? e.stderr.toString() : e.message;
-                log('⚠️ دانلود مستقیم شکست، تلاش با yt-dlp...', lastError);
-                const fallbackPath = path.join(dir, `video_${timestamp}_fallback.mp4`);
-                try {
-                  execSync(`${ytDlpBaseArgs} -o "${fallbackPath}" "${pageUrl}"`, { stdio: 'pipe', timeout: 300000 });
-                  log('✅ yt-dlp fallback موفق.');
-                  return { ok: true, path: fallbackPath };
-                } catch(e2) {
-                  lastError = e2.stderr ? e2.stderr.toString() : e2.message;
-                  log('❌ yt-dlp نیز شکست:', lastError);
-                  return { ok: false, error: lastError };
-                }
-              }
-            } else if (type === 'embed') {
-              const outPath = path.join(dir, `video_${timestamp}_${platform || 'embed'}.mp4`);
-              log(`📥 دانلود embed: ${url}`);
-              try {
-                execSync(`${ytDlpBaseArgs} -o "${outPath}" "${url}"`, { stdio: 'pipe', timeout: 300000 });
-                log('✅ embed دانلود شد.');
-                return { ok: true, path: outPath };
-              } catch(e) {
-                lastError = e.stderr ? e.stderr.toString() : e.message;
-                log('❌ yt-dlp embed fail:', lastError);
-                return { ok: false, error: lastError };
-              }
+            // پیدا کردن فایل دانلود شده
+            const files = fs.readdirSync(downloadDir).filter(f => !f.startsWith('.') && (f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm')));
+            if (files.length === 0) {
+              log('❌ هیچ فایلی در پوشه دانلود یافت نشد!');
+              return { ok: false, error: 'No output file', downloadDir };
             }
-            return { ok: false, error: 'نوع ویدیو ناشناخته' };
+            // اولین فایل (بزرگترین) را برمی‌گردانیم
+            const targetFile = files.sort((a,b) => fs.statSync(path.join(downloadDir,b)).size - fs.statSync(path.join(downloadDir,a)).size)[0];
+            log('✅ فایل دانلود شده:', targetFile);
+            return { ok: true, path: path.join(downloadDir, targetFile), downloadDir };
           }
 
-          // ======================== اسکرین‌شات کامل و PDF ========================
+          // ======================== اسکرین‌شات و PDF ========================
           async function takeFullPageScreenshot(page) {
             const shotPath = `/tmp/fullshot_${Date.now()}.png`;
             await page.screenshot({ path: shotPath, fullPage: true });
@@ -931,7 +944,6 @@ jobs:
             return pdfPath;
           }
 
-          // ======================== زوم ========================
           async function zoomPage(page, zoomIn = true) {
             const currentZoom = await page.evaluate(() => parseFloat(getComputedStyle(document.body).zoom || '1.0'));
             let newZoom = zoomIn ? Math.min(currentZoom + 0.1, 3.0) : Math.max(currentZoom - 0.1, 0.3);
@@ -987,7 +999,6 @@ jobs:
             });
           }
 
-          // ======================== ارسال اسکرین‌شات (لینک موقت) ========================
           async function sendScreenshotLink(page, chatId, fullPage = false) {
             const shotPath = fullPage ? await takeFullPageScreenshot(page) : `/tmp/shot_${chatId}_${Date.now()}.png`;
             if (!fullPage) await page.screenshot({ path: shotPath, fullPage: false });
@@ -1106,6 +1117,11 @@ jobs:
               case 'SAVE_PDF':
                 await sendPdfLink(page, chatId);
                 break;
+              case 'PAGE_LINK':
+                const currentUrl = page.url();
+                await sendMessage(chatId, `🔗 آدرس صفحه:\n${currentUrl}`);
+                await sendScreenshotLink(page, chatId);
+                break;
               case 'ENTER':
                 try {
                   const navP = page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 5000 }).catch(() => null);
@@ -1152,7 +1168,7 @@ jobs:
                 return;
               }
               case 'HELP':
-                await sendMessage(chatId, '🎮 راهنما:\n⬆️⬇️ اسکرول هوشمند\n⌨️ تایپ\n🌐 آدرس جدید\n🔍 انتخاب با شماره\n📋 متن قابل مشاهده\n🎥 ویدیوها\n🖼️ تصاویر\n📁 فایل‌ها\n🖼️ اسکرین‌شات کامل\n📄 PDF\n🔍 زوم +/-\n📸 اسکرین‌شات\n↵ Enter\n🔄 رفرش\n🠔 عقب\n🔁 پروکسی\n✖️ لغو');
+                await sendMessage(chatId, '🎮 راهنما:\n⬆️⬇️ اسکرول هوشمند\n⌨️ تایپ\n🌐 آدرس جدید\n🔍 انتخاب با شماره\n📋 متن قابل مشاهده\n🎥 ویدیوها\n🖼️ تصاویر\n📁 فایل‌ها\n🖼️ اسکرین‌شات کامل\n📄 PDF\n🔗 لینک صفحه\n🔍 زوم +/-\n📸 اسکرین‌شات\n↵ Enter\n🔄 رفرش\n🠔 عقب\n🔁 پروکسی\n✖️ لغو');
                 await sendScreenshotLink(page, chatId);
                 return;
               case 'CANCEL':
@@ -1162,7 +1178,7 @@ jobs:
                 return;
             }
 
-            if (!['SCROLL_UP', 'SCROLL_DOWN', 'TYPE', 'GO_URL', 'SELECT', 'VIDEOS', 'IMAGES', 'FILES', 'CHANGE_PROXY', 'FULL_SCREENSHOT', 'SAVE_PDF'].includes(buttonId)) {
+            if (!['SCROLL_UP', 'SCROLL_DOWN', 'TYPE', 'GO_URL', 'SELECT', 'VIDEOS', 'IMAGES', 'FILES', 'CHANGE_PROXY', 'FULL_SCREENSHOT', 'SAVE_PDF', 'PAGE_LINK'].includes(buttonId)) {
               await sendScreenshotLink(page, chatId);
             }
           }
@@ -1239,19 +1255,20 @@ jobs:
                 return;
               }
               const sel = state.videoData[num-1];
-              await sendMessage(chatId, `📥 دانلود ویدیوی شماره ${num} ...`);
-              log(`🎬 درخواست دانلود ویدیو #${num}: ${sel.src}`);
+              await sendMessage(chatId, `📥 در حال دانلود ویدیوی شماره ${num} ...`);
+              log(`🎬 دانلود ویدیو #${num}: ${sel.src}`);
               const res = await downloadVideo(sel.src, sel.type, state.pageUrlAtVideo, sel.platform, state.pageUrlAtVideo);
               if (res.ok) {
-                log('📦 دانلود موفق، شروع تبدیل...');
+                log('📦 دانلود موفق، تبدیل و تقسیم...');
                 const compatiblePath = await ensureCompatibleVideo(res.path);
                 if (!compatiblePath) {
                   await sendMessage(chatId, '❌ تبدیل ویدیو به فرمت سازگار ممکن نشد.');
                   await removeVideoHighlights(page);
                   resetAllStates(state);
+                  // پاکسازی پوشه دانلود
+                  try { fs.rmSync(res.downloadDir, { recursive: true }); } catch(_) {}
                   return;
                 }
-                log('✂️ تقسیم ویدیو...');
                 const chunkDir = `/tmp/video_chunks_${Date.now()}`;
                 fs.mkdirSync(chunkDir, { recursive: true });
                 const chunks = await splitVideoSafe(compatiblePath, chunkDir);
@@ -1265,15 +1282,16 @@ jobs:
                   links.forEach((l, i) => msg += `${i+1}. ${l}\n`);
                   await sendMessage(chatId, msg);
                 }
-                // پاکسازی
-                try { fs.unlinkSync(res.path); } catch(_) {}
-                if (compatiblePath !== res.path) try { fs.unlinkSync(compatiblePath); } catch(_) {}
+                // پاکسازی همه‌جانبه
+                try { fs.rmSync(res.downloadDir, { recursive: true }); } catch(_) {}
                 for (const c of chunks) try { fs.unlinkSync(c); } catch(_) {}
                 try { fs.rmSync(chunkDir, { recursive: true }); } catch(_) {}
+                if (compatiblePath !== res.path) try { fs.unlinkSync(compatiblePath); } catch(_) {}
               } else {
                 log('❌ دانلود ویدیو ناموفق.');
-                const errMsg = res.error ? `\nخطای فنی: ${res.error.substring(0, 500)}` : '';
+                const errMsg = res.error ? `\nخطا: ${res.error.substring(0, 500)}` : '';
                 await sendMessage(chatId, `❌ دانلود ویدیو ناموفق.${errMsg}`);
+                try { fs.rmSync(res.downloadDir, { recursive: true }); } catch(_) {}
               }
               await removeVideoHighlights(page);
               resetAllStates(state);
@@ -1334,7 +1352,7 @@ jobs:
               await sendMessage(chatId, '🟢 ربات آماده.');
               await sendScreenshotLink(page, chatId);
             } else if (text === 'help') {
-              await sendMessage(chatId, '🎮 دکمه‌ها:\n⬆️⬇️ اسکرول\n⌨️ تایپ\n🌐 آدرس جدید\n🔍 انتخاب با شماره\n📋 متن\n🎥 ویدیوها\n🖼️ تصاویر\n📁 فایل‌ها\n🖼️ اسکرین‌شات کامل\n📄 PDF\n🔍 زوم\n📸 اسکرین‌شات\n↵ Enter\n🔄 رفرش\n🠔 عقب\n🔁 پروکسی\n✖️ لغو');
+              await sendMessage(chatId, '🎮 دکمه‌ها:\n⬆️⬇️ اسکرول\n⌨️ تایپ\n🌐 آدرس جدید\n🔍 انتخاب با شماره\n📋 متن\n🎥 ویدیوها\n🖼️ تصاویر\n📁 فایل‌ها\n🖼️ اسکرین‌شات کامل\n📄 PDF\n🔗 لینک صفحه\n🔍 زوم\n📸 اسکرین‌شات\n↵ Enter\n🔄 رفرش\n🠔 عقب\n🔁 پروکسی\n✖️ لغو');
             }
           }
 
@@ -1451,7 +1469,7 @@ jobs:
 
               const cleanupInterval = setInterval(() => {
                 log('🧹 پاکسازی خودکار فایل‌های موقت...');
-                execSync('rm -rf /tmp/downloaded_* /tmp/video_chunks_* /tmp/xray_*.json /tmp/shot_* /tmp/sel_* /tmp/vid_* /tmp/img_* /tmp/scroll_* /tmp/fullshot_* /tmp/page_* 2>/dev/null');
+                execSync('rm -rf /tmp/downloaded_* /tmp/video_chunks_* /tmp/video_dl_* /tmp/xray_*.json /tmp/shot_* /tmp/sel_* /tmp/vid_* /tmp/img_* /tmp/scroll_* /tmp/fullshot_* /tmp/page_* 2>/dev/null');
                 execSync('rm -rf /tmp/.org.chromium.Chromium.* /tmp/.X11-unix 2>/dev/null');
               }, 30 * 60 * 1000);
 
