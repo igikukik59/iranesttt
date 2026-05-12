@@ -49,7 +49,7 @@ jobs:
           const StealthPlugin = require('puppeteer-extra-plugin-stealth');
           puppeteer.use(StealthPlugin());
 
-          const PROXY_FILE = 'کانفیگ های خوب.txt';
+          const PROXY_FILE = 'configs.txt';
           const TARGET_URL = 'https://duckduckgo.com';
 
           function ts() { return new Date().toISOString().replace('T',' ').substring(0,19); }
