@@ -49,6 +49,9 @@ jobs:
           const StealthPlugin = require('puppeteer-extra-plugin-stealth');
           puppeteer.use(StealthPlugin());
 
+          // مسیر مطلق فایل xray قبل از هرگونه تغییر دایرکتوری
+          const XRAY_PATH = path.join(process.cwd(), 'xray', 'xray');
+
           const TARGET_URL = 'https://duckduckgo.com';
 
           // ======================== لیست پروکسی‌های ثابت ========================
@@ -89,7 +92,6 @@ jobs:
             "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@64.188.93.158:443?encryption=none&security=tls&sni=sni.111000.v6.rocks&type=ws&host=sni.111000.v6.rocks&path="
           ];
 
-          // تنها کانفیگ‌هایی که با الگوی vless/trojan/ss/vmess شروع می‌شوند نگه می‌داریم
           const proxies = PROXIES.filter(l => /^(vless|trojan|ss|vmess):\/\//.test(l));
 
           function ts() { return new Date().toISOString().replace('T',' ').substring(0,19); }
@@ -156,7 +158,7 @@ jobs:
             if (!config) return null;
             const cfgPath = `/tmp/xray_${idx}.json`;
             fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2));
-            const xray = spawn(path.join(process.cwd(), 'xray', 'xray'), ['run', '-config', cfgPath], { stdio: 'pipe' });
+            const xray = spawn(XRAY_PATH, ['run', '-config', cfgPath], { stdio: 'pipe' });
             await new Promise(r => setTimeout(r, 4000));
             return xray;
           }
@@ -241,10 +243,10 @@ jobs:
             } catch(e) { err('خطا در پاکسازی مخازن قدیمی:', e.message); }
           }
 
-          let tempRepo = null;       // { owner, repo, fullName, cloneUrl }
+          let tempRepo = null;
           let localRepoPath = '/tmp/current-temp-repo';
           let repoPushCount = 0;
-          const MAX_FILES_IN_REPO = 80;   // avoid suspicious activity
+          const MAX_FILES_IN_REPO = 80;
 
           async function createTempRepo() {
             const name = `rb-temp-${Date.now()}-${Math.floor(Math.random()*10000)}`;
@@ -312,7 +314,6 @@ jobs:
             const dest = path.join(folderPath, remoteFileName);
             fs.copyFileSync(localPath, dest);
 
-            process.chdir(localRepoPath);
             execSync(`git add "${remoteFolder}/${remoteFileName}"`, {stdio:'pipe'});
             execSync(`git commit -m "Add ${remoteFolder}/${remoteFileName}"`, {stdio:'pipe'});
 
@@ -412,7 +413,6 @@ jobs:
             }
           }
 
-          // ======================== ارسال لینک دانلود به کاربر (به‌جای آپلود مستقیم) ========================
           async function sendDownloadLink(chatId, link, caption = '') {
             const text = caption ? `${caption}\n${link}` : link;
             await sendMessage(chatId, text);
@@ -987,7 +987,6 @@ jobs:
           // ======================== پردازش دکمه‌ها ========================
           async function handleButton(page, chatId, buttonId, browserManager) {
             const state = getState(chatId);
-            const keypad = buildControlKeypad();
             resetAllStates(state);
 
             switch(buttonId) {
@@ -1148,7 +1147,6 @@ jobs:
           // ======================== پردازش ورودی‌های متنی ========================
           async function handleTextInput(page, chatId, text) {
             const state = getState(chatId);
-            const keypad = buildControlKeypad();
 
             if (state.scrollMultiMode) {
               if (state.scrollSelectedIndex === null) {
@@ -1228,7 +1226,6 @@ jobs:
                   resetAllStates(state);
                   return;
                 }
-                const baseName = path.basename(compatiblePath, path.extname(compatiblePath));
                 const chunkDir = `/tmp/video_chunks_${Date.now()}`;
                 fs.mkdirSync(chunkDir, { recursive: true });
                 const chunks = splitVideoSafe(compatiblePath, chunkDir);
@@ -1238,7 +1235,7 @@ jobs:
                   const folderId = `video_${Date.now()}`;
                   const filesList = chunks.map(p => ({ localPath: p, fileName: path.basename(p) }));
                   const links = await uploadFilesToTempRepo(filesList, folderId);
-                  let msg = `🎬 ${baseName} (${chunks.length} قطعه)\n\n📥 لینک‌های دانلود:\n`;
+                  let msg = `🎬 ${path.basename(compatiblePath, path.extname(compatiblePath))} (${chunks.length} قطعه)\n\n📥 لینک‌های دانلود:\n`;
                   links.forEach((l, i) => msg += `${i+1}. ${l}\n`);
                   await sendMessage(chatId, msg);
                 }
@@ -1393,12 +1390,9 @@ jobs:
               if (!bot?.username) { err('توکن نامعتبر'); process.exit(1); }
               log('✅ ربات:', bot.username);
 
-              // پاکسازی مخازن قدیمی
               await deleteAllOrphanTempRepos();
-              // ساخت مخزن اولیه
               await setupTempRepo();
 
-              // اکنون proxies از آرایه ثابت PROXIES گرفته شده است
               log(`${proxies.length} کانفیگ خوب.`);
 
               const browserManager = new BrowserManager(proxies);
