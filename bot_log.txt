@@ -9134,3 +9134,14 @@ ERROR: [youtube] tW2I37TMUsA: Sign in to confirm you’re not a bot. Use --cooki
 [2026-05-12 02:44:33] ❌ خطای غیرمنتظره: GitHub API (401): {"message":"Bad credentials","documentation_url":"https://docs.github.com/rest","status":"401"}
 [2026-05-12 02:44:34] 🔀 تلاش با پروکسی تصادفی (شکست دانلود): vless://6202b230-417c-4d8e-b624-0f71afa9c75d@51.210.149.2:20...
 [2026-05-12 02:46:43] 📊 آمار به‌روزرسانی شد
+[2026-05-12 02:46:44] 📤 لاگ و آمار push شد
+[2026-05-12 02:47:06] 🎬 درخواست از b0IwfGy0bhy075e46ec15d4b823186d1: https://www.youtube.com/watch?v=umj1wHcus5I
+[2026-05-12 02:47:16] 📺 اطلاعات ویدیو: 74دقیقه
+[2026-05-12 02:47:17] 🔀 تلاش با پروکسی تصادفی (شکست دانلود): trojan://humanity@104.18.32.47:443?security=tls&type=ws&sni=...
+[2026-05-12 02:48:56] 🎬 درخواست از b0IwfGy0bhy075e46ec15d4b823186d1: https://www.youtube.com/watch?v=umj1wHcus5I
+[2026-05-12 02:49:03] 📺 اطلاعات ویدیو: 74دقیقه
+[2026-05-12 02:49:03] 🔀 تلاش با پروکسی تصادفی (شکست دانلود): trojan://humanity@172.64.152.23:443?path=/assignment&securit...
+[2026-05-12 02:53:52] 🎬 درخواست از b0IwfGy0bhy075e46ec15d4b823186d1: https://www.youtube.com/watch?v=umj1wHcus5I
+[2026-05-12 02:53:58] 📺 اطلاعات ویدیو: 74دقیقه
+[2026-05-12 02:54:00] 🔀 تلاش با پروکسی تصادفی (شکست دانلود): trojan://humanity@104.18.32.47:443?security=tls&type=ws&sni=...
+[2026-05-12 02:56:43] 📊 آمار به‌روزرسانی شد
