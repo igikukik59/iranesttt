@@ -832,7 +832,7 @@ jobs:
             });
           }
 
-          // ======================== دانلودها (استفاده از spawnSync برای جلوگیری از خطای Shell) ========================
+          // ======================== دانلودها ========================
           function runSpawn(cmd, args, options = {}) {
             log(`▶️ اجرا: ${cmd} ${args.join(' ')}`);
             const proc = spawnSync(cmd, args, {
@@ -893,50 +893,31 @@ jobs:
             fs.mkdirSync(downloadDir, { recursive: true });
             log(`📂 پوشه دانلود: ${downloadDir}`);
 
+            // فقط از yt-dlp با دانلودر داخلی و بدون ارسال آرگومان به aria2c
             const ytDlpArgs = [
               '--no-playlist',
               '--max-downloads', '1',
               '--merge-output-format', 'mp4',
               '--force-ipv4',
-              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+              '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
               '--extractor-args', 'youtube:player_client=android_vr',
-              '--downloader', 'aria2c',
-              '--downloader-args', 'aria2c:-x 16 -s 16 -k 1M',
               '--proxy', 'socks5://127.0.0.1:10808',
               '-o', path.join(downloadDir, '%(title).200s_%(id)s.%(ext)s')
             ];
 
+            let targetUrl = '';
             if (type === 'direct' && url.startsWith('blob:')) {
-              const res = runSpawn('yt-dlp', [...ytDlpArgs, pageUrl]);
-              if (!res.success) return { ok: false, error: res.error, downloadDir };
+              targetUrl = pageUrl;
             } else if (type === 'direct') {
-              const outName = `video_${Date.now()}_aria.mp4`;
-              const ariaArgs = [
-                '--socks5-proxy=127.0.0.1:10808',
-                '--check-certificate=false',
-                '-x16', '-s16', '-k1M',
-                `--user-agent=Mozilla/5.0`,
-                `--referer=${referer}`,
-                `--dir=${downloadDir}`,
-                `--out=${outName}`,
-                url
-              ];
-              const ariaRes = runSpawn('aria2c', ariaArgs);
-              if (ariaRes.success) {
-                const ariaOut = path.join(downloadDir, outName);
-                if (fs.existsSync(ariaOut)) return { ok: true, path: ariaOut, downloadDir };
-                const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4'));
-                if (files.length > 0) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir };
-              }
-              log('🔁 تلاش با yt-dlp...');
-              const res = runSpawn('yt-dlp', [...ytDlpArgs, pageUrl]);
-              if (!res.success) return { ok: false, error: res.error, downloadDir };
+              targetUrl = pageUrl; // fallback: از آدرس صفحه دانلود کن
             } else if (type === 'embed') {
-              const res = runSpawn('yt-dlp', [...ytDlpArgs, url]);
-              if (!res.success) return { ok: false, error: res.error, downloadDir };
+              targetUrl = url;
             } else {
               return { ok: false, error: 'نوع ناشناخته', downloadDir };
             }
+
+            const res = runSpawn('yt-dlp', [...ytDlpArgs, targetUrl]);
+            if (!res.success) return { ok: false, error: res.error, downloadDir };
 
             const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'));
             if (files.length === 0) {
