@@ -47,15 +47,15 @@ jobs:
           const puppeteer = require('puppeteer-extra');
           const StealthPlugin = require('puppeteer-extra-plugin-stealth');
           puppeteer.use(StealthPlugin());
-          
+
           const PROXY_FILE = 'کانفیگ های خوب.txt';
           const TARGET_URL = 'https://duckduckgo.com';
-          
+
           function ts() { return new Date().toISOString().replace('T',' ').substring(0,19); }
           function log(...args) { console.log(`[${ts()}]`, ...args); }
           function err(...args) { console.error(`[${ts()}] ❌`, ...args); }
           const sleep = ms => new Promise(r => setTimeout(r, ms));
-          
+
           // ======================== Xray Helpers ========================
           function parseURI(uri) {
             try {
@@ -69,7 +69,7 @@ jobs:
               };
             } catch(e) { return null; }
           }
-          
+
           function generateXrayConfig(uri) {
             const p = parseURI(uri);
             if (!p) return null;
@@ -109,7 +109,7 @@ jobs:
             }
             return { inbounds: [inbound], outbounds: [outbound] };
           }
-          
+
           async function startXray(uri, idx) {
             const config = generateXrayConfig(uri);
             if (!config) return null;
@@ -119,19 +119,19 @@ jobs:
             await new Promise(r => setTimeout(r, 4000));
             return xray;
           }
-          
+
           function testCurl(port) {
             try {
               execSync(`curl --socks5 127.0.0.1:${port} --max-time 5 -s http://ip-api.com/json`, { encoding: 'utf8' });
               return true;
             } catch(e) { return false; }
           }
-          
+
           // ======================== Rubika API (retry) ========================
           const TOKEN = process.env.RUBIKA_BOT_TOKEN;
           const OWNER = process.env.RUBIKA_OWNER_CHAT_ID || '';
           const BASE = `https://botapi.rubika.ir/v3/${TOKEN}`;
-          
+
           async function api(method, body = {}, retries = 3) {
             const url = `${BASE}/${method}`;
             for (let attempt = 0; attempt < retries; attempt++) {
@@ -164,26 +164,26 @@ jobs:
               }
             }
           }
-          
+
           async function sendMessage(chatId, text, extra = {}) {
             return await api('sendMessage', { chat_id: chatId, text, ...extra });
           }
-          
+
           async function deleteMessage(chatId, messageId) {
             if (!messageId) return;
             return await api('deleteMessage', { chat_id: chatId, message_id: messageId });
           }
-          
+
           // ======================== آپلود فایل ========================
           async function uploadSingleFile(filePath, fileType) {
             const reqRes = await api('requestSendFile', { type: fileType });
             const uploadUrl = reqRes?.data?.upload_url;
             if (!uploadUrl) { err('upload_url دریافت نشد'); return null; }
-          
+
             const buf = fs.readFileSync(filePath);
             const form = new FormData();
             form.append('file', new Blob([buf], { type: 'application/octet-stream' }), path.basename(filePath));
-          
+
             const upRes = await fetch(uploadUrl, { method: 'POST', body: form });
             const upText = await upRes.text();
             let upJson = {};
@@ -192,7 +192,7 @@ jobs:
             if (!fileId) { err('file_id یافت نشد'); return null; }
             return fileId;
           }
-          
+
           async function sendFileToChat(chatId, fileId, text = '', keypad = null, keypadType = 'New') {
             const sendBody = { chat_id: chatId, file_id: fileId, text };
             if (keypad) {
@@ -202,29 +202,27 @@ jobs:
             const sendRes = await api('sendFile', sendBody);
             return sendRes?.data?.message_id || null;
           }
-          
+
           async function uploadAndSendFileNormal(chatId, filePath, fileType, caption = '', keypad = null) {
             const fileId = await uploadSingleFile(filePath, fileType);
             if (!fileId) return false;
             const msgId = await sendFileToChat(chatId, fileId, caption, keypad);
             return !!msgId;
           }
-          
+
           // ======================== تبدیل خودکار ویدیو به h264 + AAC ========================
           async function ensureCompatibleVideo(inputPath) {
-            // بررسی کدک با ffprobe
             try {
               const probe = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`, { encoding: 'utf8' }).trim();
               if (probe === 'h264') {
-                // در حال حاضر h264 است، بررسی صدا
                 const audioProbe = execSync(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`, { encoding: 'utf8' }).trim();
                 if (audioProbe === 'aac') {
                   log('ویدیو از قبل h264 + AAC است.');
                   return inputPath;
                 }
               }
-            } catch(e) { /* اگر ffprobe خطا داد، تبدیل می‌کنیم */ }
-          
+            } catch(e) {}
+
             log('ویدیو نیاز به تبدیل دارد...');
             const convertedPath = inputPath.replace(/\.\w+$/, '_converted.mp4');
             try {
@@ -235,21 +233,21 @@ jobs:
               return null;
             }
           }
-          
+
           // ======================== تقسیم هوشمند ویدیو ========================
           async function splitAndSendVideo(chatId, videoPath, baseName, keypad) {
             const stats = fs.statSync(videoPath);
             const sizeMB = (stats.size / (1024 * 1024)).toFixed(1);
             log(`🎬 تقسیم ویدیو ${baseName} (${sizeMB}MB) به قطعات ۲ دقیقه‌ای...`);
-          
+
             let segmentTime = 120;
             let success = false;
-          
+
             while (segmentTime >= 30) {
-              const chunkDir = `/tmp/video_chunks_${Date.now()}_${chatId}`;
+              const chunkDir = `/tmp/video_chunks_${Date.now()}`;
               fs.mkdirSync(chunkDir, { recursive: true });
               const outputPattern = path.join(chunkDir, 'part_%03d.mp4');
-          
+
               try {
                 execSync(
                   `ffmpeg -i "${videoPath}" -c copy -f segment -segment_time ${segmentTime} -reset_timestamps 1 "${outputPattern}"`,
@@ -257,10 +255,10 @@ jobs:
                 );
               } catch(e) {
                 err('تقسیم با ffmpeg شکست:', e.message);
-                try { fs.rmdirSync(chunkDir, { recursive: true }); } catch(e) {}
+                fs.rmdirSync(chunkDir, { recursive: true });
                 return false;
               }
-          
+
               const chunks = fs.readdirSync(chunkDir)
                 .filter(f => f.endsWith('.mp4'))
                 .sort((a,b) => {
@@ -268,32 +266,32 @@ jobs:
                   const numB = parseInt(b.match(/\d+/)[0]);
                   return numA - numB;
                 });
-          
+
               if (chunks.length === 0) {
-                try { fs.rmdirSync(chunkDir, { recursive: true }); } catch(e) {}
+                fs.rmdirSync(chunkDir, { recursive: true });
                 return false;
               }
-          
+
               const tooLarge = chunks.some(f => fs.statSync(path.join(chunkDir, f)).size > 50 * 1024 * 1024);
               if (tooLarge) {
                 log(`⚠️ قطعه‌ای بیش از ۵۰MB، کاهش زمان قطعه به ${segmentTime / 2} ثانیه`);
-                try { fs.rmdirSync(chunkDir, { recursive: true }); } catch(e) {}
+                fs.rmdirSync(chunkDir, { recursive: true });
                 segmentTime = Math.floor(segmentTime / 2);
                 continue;
               }
-          
+
               const total = chunks.length;
               await sendMessage(chatId, `📦 ویدیو به ${total} قطعه mp4 تقسیم و ارسال می‌شود...`);
-          
+
               for (let i = 0; i < chunks.length; i++) {
                 const chunkPath = path.join(chunkDir, chunks[i]);
                 const chunkName = `${baseName}.part${String(i+1).padStart(2,'0')}.mp4`;
                 const chunkSize = (fs.statSync(chunkPath).size / (1024 * 1024)).toFixed(1);
                 log(`📤 قطعه ${i+1}/${total}: ${chunkName} (${chunkSize}MB)`);
-          
+
                 const finalPath = path.join(chunkDir, chunkName);
                 fs.renameSync(chunkPath, finalPath);
-          
+
                 const fileId = await uploadSingleFile(finalPath, 'Video');
                 if (!fileId) {
                   err(`❌ آپلود قطعه ${i+1} ناموفق`);
@@ -301,19 +299,19 @@ jobs:
                   try { fs.unlinkSync(finalPath); } catch(e) {}
                   continue;
                 }
-          
+
                 const isLast = (i === chunks.length - 1);
                 const caption = isLast ? `🎬 ${baseName} (قطعه آخر)` : `📦 ${chunkName} (${chunkSize}MB)`;
                 await sendFileToChat(chatId, fileId, caption, (isLast ? keypad : null));
                 await sleep(3000);
                 try { fs.unlinkSync(finalPath); } catch(e) {}
               }
-          
-              try { fs.rmdirSync(chunkDir, { recursive: true }); } catch(e) {}
+
+              fs.rmdirSync(chunkDir, { recursive: true });
               success = true;
               break;
             }
-          
+
             if (!success) {
               err('تقسیم ویدیو به قطعات زیر ۵۰MB ممکن نشد.');
               await sendMessage(chatId, '❌ حجم ویدیو بیش از حد بالاست، امکان ارسال وجود ندارد.');
@@ -321,7 +319,7 @@ jobs:
             }
             return true;
           }
-          
+
           // ======================== کی‌پد کنترلی ========================
           function buildControlKeypad() {
             return {
@@ -367,13 +365,13 @@ jobs:
               one_time_keyboard: false
             };
           }
-          
+
           // ======================== انتخاب هوشمند ========================
           async function highlightClickableElements(page) {
             return await page.evaluate(() => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-sel-id]').forEach(el => el.removeAttribute('data-rubika-sel-id'));
-          
+
               const baseSelectors = [
                 'a', 'button', 'input', 'select', 'textarea', 'area', 'summary', 'details', 'label',
                 '[onclick]',
@@ -388,7 +386,7 @@ jobs:
                 '[class*="forward"]', '[class*="back"]', '[class*="next"]', '[class*="prev"]',
                 '[aria-label*="Play"]', '[aria-label*="Pause"]', '[aria-label*="Mute"]'
               ];
-          
+
               const elements = new Set();
               function collect(root) {
                 try { root.querySelectorAll(baseSelectors.join(',')).forEach(el => elements.add(el)); } catch(e) {}
@@ -401,20 +399,20 @@ jobs:
                 });
               }
               collect(document);
-          
+
               const visible = Array.from(elements).filter(el => {
                 const rect = el.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0 &&
                        rect.bottom > 0 && rect.top < window.innerHeight &&
                        rect.right > 0 && rect.left < window.innerWidth;
               });
-          
+
               visible.sort((a,b) => {
                 const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
                 if (Math.abs(ra.top - rb.top) < 5) return ra.left - rb.left;
                 return ra.top - rb.top;
               });
-          
+
               visible.forEach((el, idx) => {
                 const num = idx + 1;
                 el.setAttribute('data-rubika-sel-id', num);
@@ -429,18 +427,18 @@ jobs:
                 badge.textContent = num;
                 document.body.appendChild(badge);
               });
-          
+
               return visible.length;
             });
           }
-          
+
           async function removeHighlights(page) {
             await page.evaluate(() => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-sel-id]').forEach(el => el.removeAttribute('data-rubika-sel-id'));
             });
           }
-          
+
           async function clickByNumber(page, number) {
             try {
               const found = await page.evaluate((num) => {
@@ -461,19 +459,19 @@ jobs:
               return true;
             } catch(e) { log('⚠️ مدیریت ناوبری کلیک'); await sleep(2000); return true; }
           }
-          
+
           // ======================== اسکرول هوشمند ========================
           async function highlightScrollableAreas(page) {
             return await page.evaluate(() => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-scroll-id]').forEach(el => el.removeAttribute('data-rubika-scroll-id'));
-          
+
               const areas = [];
               const docEl = document.documentElement;
               if (docEl.scrollHeight > window.innerHeight) {
                 areas.push({ type: 'window', rect: { top:0, left:0, width: window.innerWidth, height: window.innerHeight } });
               }
-          
+
               const all = document.querySelectorAll('*');
               all.forEach(el => {
                 const style = window.getComputedStyle(el);
@@ -485,7 +483,7 @@ jobs:
                   }
                 }
               });
-          
+
               areas.forEach((area, idx) => {
                 const num = idx + 1;
                 if (area.type === 'window') {
@@ -513,11 +511,11 @@ jobs:
                   document.body.appendChild(badge);
                 }
               });
-          
+
               return areas.length;
             });
           }
-          
+
           async function scrollAreaByPixel(page, areaIndex, px, direction) {
             const sign = direction === 'up' ? -1 : 1;
             await page.evaluate(({idx, px, sign}) => {
@@ -529,14 +527,14 @@ jobs:
               }
             }, {idx: areaIndex, px, sign});
           }
-          
+
           async function removeScrollHighlights(page) {
             await page.evaluate(() => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-scroll-id]').forEach(el => el.removeAttribute('data-rubika-scroll-id'));
             });
           }
-          
+
           // ======================== ویدیوهای صفحه ========================
           async function highlightVideoElements(page) {
             const pageUrl = page.url();
@@ -578,11 +576,11 @@ jobs:
               }
               return unique.map(r => ({ src: r.src, type: r.type, platform: r.platform || null }));
             });
-          
+
             await page.evaluate((list) => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-video-id]').forEach(el => el.removeAttribute('data-rubika-video-id'));
-          
+
               list.forEach((item, idx) => {
                 let el = null;
                 if (item.type === 'direct') {
@@ -604,24 +602,24 @@ jobs:
                 document.body.appendChild(badge);
               });
             }, videoData);
-          
+
             return { videos: videoData, pageUrl };
           }
-          
+
           async function removeVideoHighlights(page) {
             await page.evaluate(() => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-video-id]').forEach(el => el.removeAttribute('data-rubika-video-id'));
             });
           }
-          
+
           // ======================== تصاویر ========================
           async function highlightImages(page) {
             const pageUrl = page.url();
             const imageData = await page.evaluate(() => {
               return [...new Set(Array.from(document.querySelectorAll('img[src]')).map(img => img.src).filter(s => s && !s.startsWith('data:')))];
             });
-          
+
             await page.evaluate((list) => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-img-id]').forEach(el => el.removeAttribute('data-rubika-img-id'));
@@ -640,17 +638,17 @@ jobs:
                 document.body.appendChild(badge);
               });
             }, imageData);
-          
+
             return { images: imageData, pageUrl };
           }
-          
+
           async function removeImageHighlights(page) {
             await page.evaluate(() => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-img-id]').forEach(el => el.removeAttribute('data-rubika-img-id'));
             });
           }
-          
+
           // ======================== فایل‌های قابل دانلود ========================
           async function highlightFiles(page) {
             const pageUrl = page.url();
@@ -666,7 +664,7 @@ jobs:
               });
               return results;
             });
-          
+
             await page.evaluate((list) => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-file-id]').forEach(el => el.removeAttribute('data-rubika-file-id'));
@@ -685,17 +683,17 @@ jobs:
                 document.body.appendChild(badge);
               });
             }, fileData);
-          
+
             return { files: fileData, pageUrl };
           }
-          
+
           async function removeFileHighlights(page) {
             await page.evaluate(() => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-file-id]').forEach(el => el.removeAttribute('data-rubika-file-id'));
             });
           }
-          
+
           // ======================== استخراج متن با مارک‌داون ========================
           async function extractVisibleText(page) {
             return await page.evaluate(() => {
@@ -729,34 +727,34 @@ jobs:
               return lines.join('\n').substring(0, 4000);
             });
           }
-          
-          // ======================== دانلودها ========================
+
+          // ======================== دانلودها (چندرشته‌ای با aria2c) ========================
           async function downloadImage(url, referer) {
             const dir = '/tmp/downloaded_images';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const outPath = path.join(dir, `img_${Date.now()}_${path.basename(new URL(url).pathname) || 'image.jpg'}`);
             try {
-              execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 60000 });
+              execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 60000 });
               return { ok: true, path: outPath };
             } catch(e) { err('دانلود تصویر خطا:', e.message); return { ok: false }; }
           }
-          
+
           async function downloadFile(url, referer) {
             const dir = '/tmp/downloaded_files';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const outPath = path.join(dir, path.basename(new URL(url).pathname) || `file_${Date.now()}`);
             try {
-              execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 120000 });
+              execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 120000 });
               return { ok: true, path: outPath };
             } catch(e) { err('دانلود فایل خطا:', e.message); return { ok: false }; }
           }
-          
+
           async function downloadVideo(url, type, referer, platform, pageUrl) {
             const dir = '/tmp/downloaded_videos';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const timestamp = Date.now();
-          
-            // دستور yt‑dlp بدون نگرانی از کدک چون بعداً تبدیل می‌کنیم
+
+            // yt‑dlp با استفاده از aria2c به‌عنوان دانلودر خارجی (16 اتصال)
             const ytDlpCmd = [
               'yt-dlp',
               '--no-playlist',
@@ -764,9 +762,11 @@ jobs:
               '--force-ipv4',
               "--user-agent", "'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'",
               '--extractor-args', 'youtube:player_client=android_vr',
+              '--downloader', 'aria2c',
+              '--downloader-args', 'aria2c:-x 16 -s 16 -k 1M',
               '--proxy', 'socks5://127.0.0.1:10808'
             ].join(' ');
-          
+
             if (type === 'direct' && url.startsWith('blob:')) {
               const outPath = path.join(dir, `video_${timestamp}_page.mp4`);
               try {
@@ -774,11 +774,11 @@ jobs:
                 return { ok: true, path: outPath };
               } catch(e) { err('yt-dlp blob failed:', e.message); return { ok: false }; }
             }
-          
+
             if (type === 'direct') {
               const outPath = path.join(dir, `video_${timestamp}_${path.basename(new URL(url).pathname) || 'video.mp4'}`);
               try {
-                execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
+                execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
                 return { ok: true, path: outPath };
               } catch(e) {
                 log('دانلود مستقیم شکست، تلاش با yt-dlp...');
@@ -797,7 +797,7 @@ jobs:
             }
             return { ok: false };
           }
-          
+
           // ======================== اسکرین‌شات کامل و PDF ========================
           async function takeFullPageScreenshot(page, chatId, keypad) {
             const shotPath = `/tmp/fullshot_${chatId}_${Date.now()}.png`;
@@ -806,7 +806,7 @@ jobs:
             try { fs.unlinkSync(shotPath); } catch(e) {}
             return !!msgId;
           }
-          
+
           async function savePdf(page, chatId, keypad) {
             const pdfPath = `/tmp/page_${chatId}_${Date.now()}.pdf`;
             await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
@@ -814,7 +814,7 @@ jobs:
             try { fs.unlinkSync(pdfPath); } catch(e) {}
             return !!msgId;
           }
-          
+
           // ======================== زوم ========================
           async function zoomPage(page, zoomIn = true) {
             const currentZoom = await page.evaluate(() => parseFloat(getComputedStyle(document.body).zoom || '1.0'));
@@ -822,8 +822,8 @@ jobs:
             await page.evaluate((z) => { document.body.style.zoom = z; }, newZoom.toString());
             return newZoom;
           }
-          
-          // ======================== مدیریت حالت (per chat) ========================
+
+          // ======================== مدیریت حالت ========================
           const chatStates = new Map();
           function getState(chatId) {
             if (!chatStates.has(chatId)) {
@@ -851,7 +851,7 @@ jobs:
             }
             return chatStates.get(chatId);
           }
-          
+
           async function deleteTempMessages(chatId) {
             const state = getState(chatId);
             for (const msgId of state.tempMessageIds) {
@@ -859,7 +859,7 @@ jobs:
             }
             state.tempMessageIds = [];
           }
-          
+
           function resetAllStates(state) {
             Object.assign(state, {
               typingMode: false,
@@ -880,7 +880,7 @@ jobs:
               pageUrlAtFile: ''
             });
           }
-          
+
           async function updateScreenshot(page, chatId) {
             const state = getState(chatId);
             const shotPath = `/tmp/shot_${chatId}_${Date.now()}.png`;
@@ -893,13 +893,13 @@ jobs:
             if (msgId) state.lastScreenshotMsgId = msgId;
             try { fs.unlinkSync(shotPath); } catch(e) {}
           }
-          
+
           // ======================== پردازش دکمه‌ها ========================
           async function handleButton(page, chatId, buttonId, browserManager) {
             const state = getState(chatId);
             const keypad = buildControlKeypad();
             resetAllStates(state);
-          
+
             switch(buttonId) {
               case 'SCROLL_UP':
               case 'SCROLL_DOWN':
@@ -1074,17 +1074,17 @@ jobs:
                 await updateScreenshot(page, chatId);
                 return;
             }
-          
+
             if (!['SCROLL_UP', 'SCROLL_DOWN', 'TYPE', 'GO_URL', 'SELECT', 'VIDEOS', 'IMAGES', 'FILES', 'CHANGE_PROXY', 'FULL_SCREENSHOT', 'SAVE_PDF'].includes(buttonId)) {
               await updateScreenshot(page, chatId);
             }
           }
-          
+
           // ======================== پردازش ورودی‌های متنی ========================
           async function handleTextInput(page, chatId, text) {
             const state = getState(chatId);
             const keypad = buildControlKeypad();
-          
+
             if (state.scrollMultiMode) {
               if (state.scrollSelectedIndex === null) {
                 const idx = parseInt(text);
@@ -1113,7 +1113,7 @@ jobs:
                 return;
               }
             }
-          
+
             if (state.typingMode) {
               state.typingMode = false;
               if (text) {
@@ -1123,7 +1123,7 @@ jobs:
               await updateScreenshot(page, chatId);
               return;
             }
-          
+
             if (state.urlMode) {
               state.urlMode = false;
               if (text) {
@@ -1136,7 +1136,7 @@ jobs:
               await updateScreenshot(page, chatId);
               return;
             }
-          
+
             if (state.selectionMode) {
               const num = parseInt(text);
               if (isNaN(num) || num <= 0) { await sendMessage(chatId, '❌ عدد معتبر وارد کنید.'); return; }
@@ -1148,7 +1148,7 @@ jobs:
               await updateScreenshot(page, chatId);
               return;
             }
-          
+
             if (state.videoMode) {
               const num = parseInt(text);
               if (isNaN(num) || num < 1 || num > state.videoData.length) {
@@ -1180,7 +1180,7 @@ jobs:
               await updateScreenshot(page, chatId);
               return;
             }
-          
+
             if (state.imageMode) {
               const num = parseInt(text);
               if (isNaN(num) || num < 1 || num > state.imageData.length) {
@@ -1202,7 +1202,7 @@ jobs:
               await updateScreenshot(page, chatId);
               return;
             }
-          
+
             if (state.fileMode) {
               const num = parseInt(text);
               if (isNaN(num) || num < 1 || num > state.fileData.length) {
@@ -1224,7 +1224,7 @@ jobs:
               await updateScreenshot(page, chatId);
               return;
             }
-          
+
             if (text === '/start') {
               await sendMessage(chatId, '🟢 ربات آماده.');
               if (!state.lastScreenshotMsgId) await updateScreenshot(page, chatId);
@@ -1232,26 +1232,26 @@ jobs:
               await sendMessage(chatId, '🎮 دکمه‌ها:\n⬆️⬇️ اسکرول\n⌨️ تایپ\n🌐 آدرس جدید\n🔍 انتخاب با شماره\n📋 متن\n🎥 ویدیوها\n🖼️ تصاویر\n📁 فایل‌ها\n🖼️ اسکرین‌شات کامل\n📄 PDF\n🔍 زوم\n📸 اسکرین‌شات\n↵ Enter\n🔄 رفرش\n🠔 عقب\n🔁 پروکسی\n✖️ لغو');
             }
           }
-          
+
           // ======================== مدیریت پروکسی و مرورگر ========================
           class BrowserManager {
             constructor(proxies) {
               this.proxies = proxies;
               this.browser = null;
+              this.page = null;
               this.xrayProc = null;
               this.currentProxyIndex = -1;
             }
-          
             async startBrowserWithProxy(index) {
               if (this.xrayProc) { this.xrayProc.kill(); await sleep(500); }
               if (this.browser) { try { await this.browser.close(); } catch(_) {} }
-          
+
               const uri = this.proxies[index];
               log(`🔌 تست پروکسی ${index+1}/${this.proxies.length}: ${uri.substring(0,60)}...`);
               this.xrayProc = await startXray(uri, index);
               if (!this.xrayProc) throw new Error('Xray start failed');
               if (!testCurl(10808)) throw new Error('Curl failed');
-          
+
               this.browser = await puppeteer.launch({
                 headless: 'new',
                 args: [
@@ -1261,32 +1261,21 @@ jobs:
                 ],
                 defaultViewport: null
               });
-              this.currentProxyIndex = index;
+              this.page = await this.browser.newPage();
+              await this.page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
+              await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0');
+              await this.page.evaluate(() => { document.body.style.zoom = '1.0'; });
             }
-          
-            async createIncognitoContext() {
-              if (!this.browser) throw new Error('Browser not launched');
-              const context = await this.browser.createIncognitoBrowserContext();
-              const page = await context.newPage();
-              await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-              await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0');
-              await page.evaluate(() => { document.body.style.zoom = '1.0'; });
-              return { context, page };
-            }
-          
             async findWorkingProxy() {
               for (let i = 0; i < this.proxies.length; i++) {
                 try {
                   await this.startBrowserWithProxy(i);
-                  // ایجاد کانتکست موقت برای تست
-                  const { page } = await this.createIncognitoContext();
-                  await page.goto(TARGET_URL, { waitUntil: 'networkidle2', timeout: 30000 });
+                  await this.page.goto(TARGET_URL, { waitUntil: 'networkidle2', timeout: 30000 });
                   await sleep(2000);
-                  const blocked = await page.evaluate(() => {
+                  const blocked = await this.page.evaluate(() => {
                     const bodyText = document.body.innerText.toLowerCase();
                     return ['access denied', 'you have been blocked', 'cloudflare', 'attention required'].some(t => bodyText.includes(t));
                   });
-                  await page.browserContext().close();
                   if (blocked) { log('⛔ پروکسی بلاک دارد.'); continue; }
                   this.currentProxyIndex = i;
                   log('✅ اتصال موفق.');
@@ -1295,151 +1284,28 @@ jobs:
               }
               return false;
             }
-          
             async switchProxy() {
               let newIdx = (this.currentProxyIndex + 1) % this.proxies.length;
               for (let i = 0; i < this.proxies.length; i++) {
                 try {
                   await this.startBrowserWithProxy(newIdx);
-                  const { page } = await this.createIncognitoContext();
-                  await page.goto(TARGET_URL, { waitUntil: 'networkidle2', timeout: 30000 });
+                  await this.page.goto(TARGET_URL, { waitUntil: 'networkidle2', timeout: 30000 });
                   await sleep(2000);
-                  const blocked = await page.evaluate(() => {
+                  const blocked = await this.page.evaluate(() => {
                     const bodyText = document.body.innerText.toLowerCase();
                     return ['access denied', 'you have been blocked', 'cloudflare', 'attention required'].some(t => bodyText.includes(t));
                   });
-                  await page.browserContext().close();
                   if (blocked) { log('پروکسی جدید بلاک دارد.'); newIdx = (newIdx + 1) % this.proxies.length; continue; }
                   this.currentProxyIndex = newIdx;
                   log(`✅ پروکسی به ${newIdx+1} تغییر کرد.`);
+                  if (OWNER) await updateScreenshot(this.page, OWNER);
                   return true;
                 } catch(e) { log('خطا با پروکسی:', e.message); newIdx = (newIdx + 1) % this.proxies.length; }
               }
               return false;
             }
           }
-          
-          // ======================== سیستم نوبت‌دهی ========================
-          class AppointmentQueue {
-            constructor() {
-              this.queue = [];           // [{ chatId, startTime (Unix ms) }]
-              this.activeSession = null; // { chatId, startTime, endTime, context, page }
-              this.SLOT_MINUTES = 5;
-            }
-          
-            getTehranTime(date = new Date()) {
-              return date.toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-            }
-          
-            getNextAvailableSlot() {
-              const now = Date.now();
-              if (this.queue.length === 0) {
-                return now; // slot can start immediately
-              }
-              const last = this.queue[this.queue.length - 1];
-              const lastEnd = last.startTime + this.SLOT_MINUTES * 60 * 1000;
-              return Math.max(now, lastEnd);
-            }
-          
-            addUser(chatId) {
-              // اگر کاربر قبلاً در صف است، زمانش را برنگردان
-              if (this.queue.some(u => u.chatId === chatId) || (this.activeSession && this.activeSession.chatId === chatId)) {
-                return false;
-              }
-              const startTime = this.getNextAvailableSlot();
-              this.queue.push({ chatId, startTime });
-              // مرتب‌سازی صف بر اساس startTime
-              this.queue.sort((a, b) => a.startTime - b.startTime);
-              return { startTime, endTime: startTime + this.SLOT_MINUTES * 60 * 1000 };
-            }
-          
-            removeUser(chatId) {
-              this.queue = this.queue.filter(u => u.chatId !== chatId);
-            }
-          
-            getActiveSession() {
-              return this.activeSession;
-            }
-          
-            async startNextSession(browserManager) {
-              if (this.activeSession) return; // فقط یک جلسه فعال
-              if (this.queue.length === 0) return;
-          
-              const now = Date.now();
-              // استفاده از اولین نفری که startTime رسیده باشد
-              const nextIdx = this.queue.findIndex(u => u.startTime <= now);
-              if (nextIdx === -1) return; // هنوز زمانش نرسیده
-          
-              const user = this.queue[nextIdx];
-              this.queue.splice(nextIdx, 1);
-              const endTime = user.startTime + this.SLOT_MINUTES * 60 * 1000;
-              const session = {
-                chatId: user.chatId,
-                startTime: user.startTime,
-                endTime,
-                context: null,
-                page: null
-              };
-              try {
-                const { context, page } = await browserManager.createIncognitoContext();
-                session.context = context;
-                session.page = page;
-                this.activeSession = session;
-                log(`🚀 شروع نوبت کاربر ${session.chatId} (${this.getTehranTime(new Date(session.startTime))} - ${this.getTehranTime(new Date(session.endTime))})`);
-                await sendMessage(session.chatId, `🟢 نوبت شما شروع شد (${this.getTehranTime(new Date())} تا ${this.getTehranTime(new Date(endTime))}). ۵ دقیقه وقت دارید.`);
-                // ارسال اسکرین‌شات اولیه
-                const state = getState(session.chatId);
-                state.lastScreenshotMsgId = null;
-                await updateScreenshot(session.page, session.chatId);
-              } catch(e) {
-                err(`خطا در شروع جلسه: ${e.message}`);
-                await sendMessage(user.chatId, '❌ خطا در برقراری جلسه. لطفاً دوباره تلاش کنید.');
-                if (session.context) await session.context.close();
-                this.activeSession = null;
-              }
-            }
-          
-            async endActiveSession(reason = 'timeout') {
-              const session = this.activeSession;
-              if (!session) return;
-              log(`⏹️ پایان جلسه کاربر ${session.chatId} (دلیل: ${reason})`);
-              try {
-                if (reason === 'timeout') {
-                  await sendMessage(session.chatId, '⏰ زمان شما تمام شد. نوبت بعدی را دریافت کنید.');
-                } else if (reason === 'missed') {
-                  await sendMessage(session.chatId, '⏰ نوبت شما به دلیل عدم استفاده لغو شد. دوباره نوبت بگیرید.');
-                }
-              } catch(e) {}
-              // بستن کانتکست و حذف تمام اطلاعات مرورگر
-              try {
-                if (session.context) await session.context.close();
-              } catch(e) { err('خطا در بستن کانتکست:', e.message); }
-              // پاک‌سازی فایل‌های موقت مربوط به این کاربر
-              try {
-                execSync(`rm -rf /tmp/shot_${session.chatId}_* /tmp/sel_${session.chatId}_* /tmp/vid_${session.chatId}_* /tmp/img_${session.chatId}_* /tmp/scroll_${session.chatId}_* /tmp/fullshot_${session.chatId}_* /tmp/page_${session.chatId}_* /tmp/video_chunks_*${session.chatId}* 2>/dev/null`);
-              } catch(e) {}
-              // ریست حالت‌های کاربر
-              chatStates.delete(session.chatId);
-              this.activeSession = null;
-              // شروع کاربر بعدی
-              await this.startNextSession(globalBrowserManager);
-            }
-          
-            checkAndHandleExpiry() {
-              const session = this.activeSession;
-              if (!session) return;
-              const now = Date.now();
-              if (now >= session.endTime) {
-                this.endActiveSession('timeout');
-              }
-            }
-          
-            // آیا کاربر می‌تواند الان تعامل کند؟
-            isUserActive(chatId) {
-              return this.activeSession && this.activeSession.chatId === chatId;
-            }
-          }
-          
+
           // ======================== اجرای اصلی ========================
           (async () => {
             try {
@@ -1447,27 +1313,25 @@ jobs:
               const bot = me?.data?.bot;
               if (!bot?.username) { err('توکن نامعتبر'); process.exit(1); }
               log('✅ ربات:', bot.username);
-          
+
               if (!fs.existsSync(PROXY_FILE)) {
                 err(`فایل ${PROXY_FILE} یافت نشد.`);
                 process.exit(1);
               }
-          
+
               const proxies = fs.readFileSync(PROXY_FILE, 'utf8')
                 .split('\n').map(l => l.trim())
                 .filter(l => /^(vless|trojan|ss|vmess):\/\//.test(l));
               log(`${proxies.length} کانفیگ خوب.`);
-          
+
               const browserManager = new BrowserManager(proxies);
-              global.browserManager = browserManager;
-              const appointmentQueue = new AppointmentQueue();
-          
               const found = await browserManager.findWorkingProxy();
               if (!found) { err('هیچ پروکسی سالمی یافت نشد.'); process.exit(1); }
-          
-              if (OWNER) await sendMessage(OWNER, '🟢 ربات روشن شد (با سیستم نوبت‌دهی).');
+
+              let page = browserManager.page;
+              if (OWNER) await sendMessage(OWNER, '🟢 ربات روشن شد.');
               else log('⚠️ OWNER_CHAT_ID تنظیم نشده.');
-          
+
               log('🧹 پاک‌سازی تاریخچه...');
               let offset = null, flushed = 0;
               while (true) {
@@ -1482,26 +1346,18 @@ jobs:
                 else break;
               }
               log(`✅ تاریخچه پاک (${flushed} آپدیت). offset: ${offset || 'ندارد'}`);
-          
-              // پاکسازی دوره‌ای فایل‌های موقت هر ۳۰ دقیقه
+
+              if (OWNER) await updateScreenshot(page, OWNER);
+
               const cleanupInterval = setInterval(() => {
                 log('🧹 پاکسازی خودکار فایل‌های موقت...');
                 execSync('rm -rf /tmp/downloaded_* /tmp/video_chunks_* /tmp/xray_*.json /tmp/shot_* /tmp/sel_* /tmp/vid_* /tmp/img_* /tmp/scroll_* /tmp/fullshot_* /tmp/page_* 2>/dev/null');
                 execSync('rm -rf /tmp/.org.chromium.Chromium.* /tmp/.X11-unix 2>/dev/null');
               }, 30 * 60 * 1000);
-          
-              // تایمر بررسی پایان جلسه هر ۵ ثانیه
-              const sessionCheckInterval = setInterval(() => {
-                appointmentQueue.checkAndHandleExpiry();
-                // همچنین اگر جلسه فعالی وجود ندارد، ببینیم کاربر بعدی می‌تواند شروع شود
-                if (!appointmentQueue.activeSession) {
-                  appointmentQueue.startNextSession(browserManager);
-                }
-              }, 5000);
-          
+
               let consecutiveErrors = 0;
               const END_TIME = Date.now() + 17380 * 1000;
-          
+
               while (Date.now() < END_TIME) {
                 try {
                   const params = { limit: 10 };
@@ -1515,75 +1371,35 @@ jobs:
                   }
                   consecutiveErrors = 0;
                   const updates = upRes?.data?.updates;
-          
+
                   if (updates?.length) {
                     for (const upd of updates) {
                       if (upd.type !== 'NewMessage') continue;
                       const chatId = upd.chat_id;
                       const msg = upd.new_message;
                       if (!msg) continue;
-          
+
+                      const state = getState(chatId);
                       const buttonId = msg.aux_data?.button_id;
                       const text = (msg.text || '').trim();
-          
-                      // مدیریت نوبت‌ها
-                      const activeUserId = appointmentQueue.getActiveSession()?.chatId;
-          
-                      // پیام از کاربری که الان نوبت دارد
-                      if (activeUserId && chatId === activeUserId) {
-                        const state = getState(chatId);
-                        await deleteTempMessages(chatId);
-                        try {
-                          if (buttonId) {
-                            log(`🔘 دکمه ${buttonId} از ${chatId} (فعال)`);
-                            await handleButton(appointmentQueue.activeSession.page, chatId, buttonId, browserManager);
-                          } else {
-                            await handleTextInput(appointmentQueue.activeSession.page, chatId, text);
-                          }
-                        } catch(handlerError) {
-                          err('خطا در پردازش:', handlerError.message);
-                          const st = getState(chatId);
-                          resetAllStates(st);
-                          await sendMessage(chatId, '⚠️ خطا. حالت‌ها ریست شد.');
-                          try { await updateScreenshot(appointmentQueue.activeSession.page, chatId); } catch(e) {}
-                        }
-                      } else if (text === '/start' || text === 'start') {
-                        // درخواست نوبت
-                        const result = appointmentQueue.addUser(chatId);
-                        if (result) {
-                          const startTehran = new Date(result.startTime).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' });
-                          const endTehran = new Date(result.endTime).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' });
-                          await sendMessage(chatId, `📌 نوبت شما: ${startTehran} تا ${endTehran} (به وقت تهران)\nدر آن زمان آماده باشید.`);
-                          // اگر در حال حاضر هیچ جلسه فعالی نیست و نوبت هم رسیده، فوراً شروع کن
-                          if (!appointmentQueue.activeSession && result.startTime <= Date.now()) {
-                            await appointmentQueue.startNextSession(browserManager);
-                          }
+
+                      await deleteTempMessages(chatId);
+
+                      try {
+                        if (buttonId) {
+                          log(`🔘 دکمه ${buttonId} از ${chatId}`);
+                          await handleButton(page, chatId, buttonId, browserManager);
                         } else {
-                          // کاربر قبلاً ثبت نام کرده
-                          const inQueue = appointmentQueue.queue.find(u => u.chatId === chatId);
-                          if (inQueue) {
-                            const startTehran = new Date(inQueue.startTime).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' });
-                            const endTehran = new Date(inQueue.startTime + 5 * 60000).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' });
-                            await sendMessage(chatId, `⏳ شما قبلاً نوبت دارید: ${startTehran} تا ${endTehran} (به وقت تهران). لطفاً منتظر بمانید.`);
-                          } else {
-                            await sendMessage(chatId, '⏳ شما در حال حاضر نوبت فعال دارید. لطفاً استفاده کنید.');
-                          }
+                          await handleTextInput(page, chatId, text);
                         }
-                      } else {
-                        // کاربری که نوبت ندارد یا نوبتش فعال نیست
-                        if (appointmentQueue.isUserActive(chatId)) {
-                          // این حالت نباید رخ بدهد (چون قبلاً شرط فعال بررسی شد) ولی برای اطمینان
-                          continue;
-                        }
-                        // بررسی وجود در صف
-                        const inQueue = appointmentQueue.queue.find(u => u.chatId === chatId);
-                        if (inQueue) {
-                          const startTehran = new Date(inQueue.startTime).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' });
-                          await sendMessage(chatId, `⏳ نوبت شما ساعت ${startTehran} (به وقت تهران) است. لطفاً منتظر بمانید.`);
-                        } else {
-                          await sendMessage(chatId, 'برای دریافت نوبت، /start را ارسال کنید.');
-                        }
+                      } catch(handlerError) {
+                        err('خطا در پردازش:', handlerError.message);
+                        const st = getState(chatId);
+                        resetAllStates(st);
+                        await sendMessage(chatId, '⚠️ خطا. حالت‌ها ریست شد.');
+                        try { await updateScreenshot(page, chatId); } catch(e) {}
                       }
+                      page = browserManager.page;
                     }
                     if (upRes.data?.next_offset_id) offset = upRes.data.next_offset_id;
                   }
@@ -1593,14 +1409,9 @@ jobs:
                 }
                 await sleep(4000);
               }
-          
+
               log('⏰ خاموشی خودکار.');
               clearInterval(cleanupInterval);
-              clearInterval(sessionCheckInterval);
-              // بستن جلسه فعال اگر وجود دارد
-              if (appointmentQueue.activeSession) {
-                await appointmentQueue.endActiveSession('shutdown');
-              }
               await browserManager.browser.close();
               browserManager.xrayProc.kill();
               if (OWNER) await sendMessage(OWNER, '⏹️ ربات خاموش شد.');
