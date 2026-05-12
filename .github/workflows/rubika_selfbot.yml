@@ -22,7 +22,7 @@ jobs:
 
       - name: 🧰 نصب ابزارها
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y curl unzip python3-pip ffmpeg
+          sudo apt-get update -qq && sudo apt-get install -y curl unzip python3-pip ffmpeg aria2
           pip install yt-dlp
           wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -O /tmp/xray.zip
           unzip -q /tmp/xray.zip -d xray && chmod +x xray/xray
@@ -174,23 +174,60 @@ jobs:
             return await api('deleteMessage', { chat_id: chatId, message_id: messageId });
           }
 
-          // ======================== آپلود فایل ========================
-          async function uploadSingleFile(filePath, fileType) {
-            const reqRes = await api('requestSendFile', { type: fileType });
-            const uploadUrl = reqRes?.data?.upload_url;
-            if (!uploadUrl) { err('upload_url دریافت نشد'); return null; }
+          // ======================== آپلود فایل (با تشخیص خطا و تلاش مجدد) ========================
+          async function uploadSingleFile(filePath, fileType, fallbackType = null) {
+            // بررسی وجود و اندازه فایل
+            if (!fs.existsSync(filePath)) {
+              err(`فایل ${filePath} وجود ندارد.`);
+              return null;
+            }
+            const fileStats = fs.statSync(filePath);
+            if (fileStats.size === 0) {
+              err(`فایل ${filePath} خالی است.`);
+              return null;
+            }
 
-            const buf = fs.readFileSync(filePath);
-            const form = new FormData();
-            form.append('file', new Blob([buf], { type: 'application/octet-stream' }), path.basename(filePath));
+            const typesToTry = [fileType];
+            if (fallbackType) typesToTry.push(fallbackType);
 
-            const upRes = await fetch(uploadUrl, { method: 'POST', body: form });
-            const upText = await upRes.text();
-            let upJson = {};
-            try { upJson = JSON.parse(upText); } catch(e) {}
-            const fileId = upJson?.file_id || upJson?.data?.file_id;
-            if (!fileId) { err('file_id یافت نشد'); return null; }
-            return fileId;
+            for (const type of typesToTry) {
+              log(`📤 تلاش آپلود با نوع ${type}...`);
+              const reqRes = await api('requestSendFile', { type });
+              const uploadUrl = reqRes?.data?.upload_url;
+              if (!uploadUrl) {
+                err(`upload_url دریافت نشد (نوع ${type})`);
+                continue;
+              }
+
+              const buf = fs.readFileSync(filePath);
+              const form = new FormData();
+              form.append('file', new Blob([buf], { type: 'application/octet-stream' }), path.basename(filePath));
+
+              try {
+                const upRes = await fetch(uploadUrl, { method: 'POST', body: form });
+                const upText = await upRes.text();
+                log(`🔍 پاسخ آپلود (${type}): ${upText.substring(0, 200)}`);
+
+                let upJson = {};
+                try { upJson = JSON.parse(upText); } catch(e) {
+                  err('پاسخ آپلود JSON نیست:', upText.substring(0, 200));
+                  continue;
+                }
+
+                const fileId = upJson?.file_id || upJson?.data?.file_id;
+                if (fileId) {
+                  log(`✅ file_id دریافت شد: ${fileId}`);
+                  return fileId;
+                } else {
+                  err(`❌ file_id در پاسخ یافت نشد (نوع ${type}). جزئیات: ${JSON.stringify(upJson)}`);
+                }
+              } catch(e) {
+                err(`خطا در fetch آپلود (نوع ${type}):`, e.message);
+              }
+            }
+
+            err('تمام تلاش‌های آپلود ناموفق بود.');
+            return null;
           }
 
           async function sendFileToChat(chatId, fileId, text = '', keypad = null, keypadType = 'New') {
@@ -204,7 +241,9 @@ jobs:
           }
 
           async function uploadAndSendFileNormal(chatId, filePath, fileType, caption = '', keypad = null) {
-            const fileId = await uploadSingleFile(filePath, fileType);
+            // برای اسکرین‌شات و PDF از Image/File استفاده می‌کنیم، اگر نوع اول نشد، File را امتحان کن
+            const fallback = (fileType === 'Image') ? 'File' : null;
+            const fileId = await uploadSingleFile(filePath, fileType, fallback);
             if (!fileId) return false;
             const msgId = await sendFileToChat(chatId, fileId, caption, keypad);
             return !!msgId;
@@ -212,18 +251,16 @@ jobs:
 
           // ======================== تبدیل خودکار ویدیو به h264 + AAC ========================
           async function ensureCompatibleVideo(inputPath) {
-            // بررسی کدک با ffprobe
             try {
               const probe = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`, { encoding: 'utf8' }).trim();
               if (probe === 'h264') {
-                // در حال حاضر h264 است، بررسی صدا (اختیاری، ولی معمولاً اگر صدا aac نباشد روبیکا رد نمی‌کند)
                 const audioProbe = execSync(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`, { encoding: 'utf8' }).trim();
                 if (audioProbe === 'aac') {
                   log('ویدیو از قبل h264 + AAC است.');
-                  return inputPath; // سازگار است
+                  return inputPath;
                 }
               }
-            } catch(e) { /* اگر ffprobe خطا داد، تبدیل می‌کنیم */ }
+            } catch(e) {}
 
             log('ویدیو نیاز به تبدیل دارد...');
             const convertedPath = inputPath.replace(/\.\w+$/, '_converted.mp4');
@@ -730,13 +767,13 @@ jobs:
             });
           }
 
-          // ======================== دانلودها ========================
+          // ======================== دانلودها (چندرشته‌ای با aria2c) ========================
           async function downloadImage(url, referer) {
             const dir = '/tmp/downloaded_images';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const outPath = path.join(dir, `img_${Date.now()}_${path.basename(new URL(url).pathname) || 'image.jpg'}`);
             try {
-              execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 60000 });
+              execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 60000 });
               return { ok: true, path: outPath };
             } catch(e) { err('دانلود تصویر خطا:', e.message); return { ok: false }; }
           }
@@ -746,7 +783,7 @@ jobs:
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const outPath = path.join(dir, path.basename(new URL(url).pathname) || `file_${Date.now()}`);
             try {
-              execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 120000 });
+              execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 120000 });
               return { ok: true, path: outPath };
             } catch(e) { err('دانلود فایل خطا:', e.message); return { ok: false }; }
           }
@@ -756,7 +793,6 @@ jobs:
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const timestamp = Date.now();
 
-            // دستور yt‑dlp بدون نگرانی از کدک چون بعداً تبدیل می‌کنیم
             const ytDlpCmd = [
               'yt-dlp',
               '--no-playlist',
@@ -764,6 +800,8 @@ jobs:
               '--force-ipv4',
               "--user-agent", "'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'",
               '--extractor-args', 'youtube:player_client=android_vr',
+              '--downloader', 'aria2c',
+              '--downloader-args', 'aria2c:-x 16 -s 16 -k 1M',
               '--proxy', 'socks5://127.0.0.1:10808'
             ].join(' ');
 
@@ -778,7 +816,7 @@ jobs:
             if (type === 'direct') {
               const outPath = path.join(dir, `video_${timestamp}_${path.basename(new URL(url).pathname) || 'video.mp4'}`);
               try {
-                execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
+                execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
                 return { ok: true, path: outPath };
               } catch(e) {
                 log('دانلود مستقیم شکست، تلاش با yt-dlp...');
@@ -1159,7 +1197,6 @@ jobs:
               await sendMessage(chatId, `📥 دانلود ویدیوی شماره ${num} ...`);
               const res = await downloadVideo(sel.src, sel.type, state.pageUrlAtVideo, sel.platform, state.pageUrlAtVideo);
               if (res.ok) {
-                // بررسی و تبدیل کدک
                 const compatiblePath = await ensureCompatibleVideo(res.path);
                 if (!compatiblePath) {
                   await sendMessage(chatId, '❌ تبدیل ویدیو به فرمت سازگار ممکن نشد.');
@@ -1170,7 +1207,6 @@ jobs:
                 const baseName = path.basename(compatiblePath, path.extname(compatiblePath));
                 const sent = await splitAndSendVideo(chatId, compatiblePath, baseName, keypad);
                 if (!sent) await sendMessage(chatId, '❌ ارسال ویدیو ناموفق.');
-                // پاکسازی فایل اصلی و احتمالاً فایل تبدیل‌شده
                 try { fs.unlinkSync(res.path); } catch(e) {}
                 if (compatiblePath !== res.path) {
                   try { fs.unlinkSync(compatiblePath); } catch(e) {}
@@ -1351,7 +1387,6 @@ jobs:
 
               if (OWNER) await updateScreenshot(page, OWNER);
 
-              // پاکسازی دوره‌ای هر ۳۰ دقیقه
               const cleanupInterval = setInterval(() => {
                 log('🧹 پاکسازی خودکار فایل‌های موقت...');
                 execSync('rm -rf /tmp/downloaded_* /tmp/video_chunks_* /tmp/xray_*.json /tmp/shot_* /tmp/sel_* /tmp/vid_* /tmp/img_* /tmp/scroll_* /tmp/fullshot_* /tmp/page_* 2>/dev/null');
@@ -1402,7 +1437,6 @@ jobs:
                         await sendMessage(chatId, '⚠️ خطا. حالت‌ها ریست شد.');
                         try { await updateScreenshot(page, chatId); } catch(e) {}
                       }
-                      // به‌روزرسانی page بعد از هر عملیات
                       page = browserManager.page;
                     }
                     if (upRes.data?.next_offset_id) offset = upRes.data.next_offset_id;
