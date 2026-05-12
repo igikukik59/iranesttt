@@ -1,7 +1,7 @@
 name: Upload to Rubika Saved Messages
 
 on:
-  workflow_dispatch:   # فقط وقتی دستی اجراش کنی
+  workflow_dispatch:   # فقط دستی اجرا می‌شه
 
 jobs:
   upload:
@@ -20,10 +20,10 @@ jobs:
 
       - name: Restore Rubika session from secret
         run: |
-          echo "${{ secrets.RUBIKA_SESSION_BASE64 }}" | base64 -d > rubika_session
+          printf '%s' "${{ secrets.SESSION_DATA }}" | base64 -d > rubika_session.session
         shell: bash
 
       - name: Run upload script
         env:
-          RUBIKA_SESSION: rubika_session
+          RUBIKA_SESSION_FILE: rubika_session.session
         run: python upload_action.py
