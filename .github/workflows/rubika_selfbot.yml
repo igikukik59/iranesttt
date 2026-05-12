@@ -1,4 +1,4 @@
-name: 🌐 مرورگر راه دور (نسخه نهایی با تبدیل خودکار ویدیو)
+name: 🌐 مرورگر راه دور (نسخه نهایی با تبدیل خودکار ویدیو + آپلود موقت روی GitHub)
 
 on:
   workflow_dispatch:
@@ -35,13 +35,14 @@ jobs:
           rm -rf /tmp/downloaded_videos /tmp/downloaded_images /tmp/downloaded_files /tmp/video_chunks_* /tmp/xray_*.json /tmp/shot_* /tmp/sel_* /tmp/vid_* /tmp/img_* /tmp/scroll_* /tmp/fullshot_* /tmp/page_* 2>/dev/null
           df -h /tmp
 
-      - name: 🤖 اجرای ربات (نسخه نهایی کامل)
+      - name: 🤖 اجرای ربات (نسخه نهایی با آپلود GitHub)
         env:
           RUBIKA_BOT_TOKEN: ${{ secrets.RUBIKA_BOT_TOKEN }}
           RUBIKA_OWNER_CHAT_ID: ${{ secrets.RUBIKA_OWNER_CHAT_ID }}
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           cat > agent.cjs << 'ENDSCRIPT'
-          const { spawn, execSync } = require('child_process');
+          const { spawn, execSync, exec } = require('child_process');
           const fs = require('fs');
           const path = require('path');
           const puppeteer = require('puppeteer-extra');
@@ -169,84 +170,140 @@ jobs:
             return await api('sendMessage', { chat_id: chatId, text, ...extra });
           }
 
-          async function deleteMessage(chatId, messageId) {
-            if (!messageId) return;
-            return await api('deleteMessage', { chat_id: chatId, message_id: messageId });
-          }
+          // ======================== مدیریت مخازن موقت GitHub ========================
+          const PAT_TOKEN = process.env.PAT_TOKEN;
+          if (!PAT_TOKEN) { err('❌ PAT_TOKEN تنظیم نشده'); process.exit(1); }
 
-          // ======================== آپلود فایل (با تشخیص خطا و تلاش مجدد) ========================
-          async function uploadSingleFile(filePath, fileType, fallbackType = null) {
-            // بررسی وجود و اندازه فایل
-            if (!fs.existsSync(filePath)) {
-              err(`فایل ${filePath} وجود ندارد.`);
-              return null;
-            }
-            const fileStats = fs.statSync(filePath);
-            if (fileStats.size === 0) {
-              err(`فایل ${filePath} خالی است.`);
-              return null;
-            }
-
-            const typesToTry = [fileType];
-            if (fallbackType) typesToTry.push(fallbackType);
-
-            for (const type of typesToTry) {
-              log(`📤 تلاش آپلود با نوع ${type}...`);
-              const reqRes = await api('requestSendFile', { type });
-              const uploadUrl = reqRes?.data?.upload_url;
-              if (!uploadUrl) {
-                err(`upload_url دریافت نشد (نوع ${type})`);
-                continue;
+          async function ghApi(url, options = {}) {
+            const res = await fetch(url, {
+              ...options,
+              headers: {
+                Authorization: `token ${PAT_TOKEN}`,
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
               }
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(`GitHub API (${res.status}): ${JSON.stringify(data)}`);
+            return data;
+          }
 
-              const buf = fs.readFileSync(filePath);
-              const form = new FormData();
-              form.append('file', new Blob([buf], { type: 'application/octet-stream' }), path.basename(filePath));
-
-              try {
-                const upRes = await fetch(uploadUrl, { method: 'POST', body: form });
-                const upText = await upRes.text();
-                log(`🔍 پاسخ آپلود (${type}): ${upText.substring(0, 200)}`);
-
-                let upJson = {};
-                try { upJson = JSON.parse(upText); } catch(e) {
-                  err('پاسخ آپلود JSON نیست:', upText.substring(0, 200));
-                  continue;
-                }
-
-                const fileId = upJson?.file_id || upJson?.data?.file_id;
-                if (fileId) {
-                  log(`✅ file_id دریافت شد: ${fileId}`);
-                  return fileId;
-                } else {
-                  err(`❌ file_id در پاسخ یافت نشد (نوع ${type}). جزئیات: ${JSON.stringify(upJson)}`);
-                }
-              } catch(e) {
-                err(`خطا در fetch آپلود (نوع ${type}):`, e.message);
+          async function deleteAllOrphanTempRepos() {
+            log('🔍 جستجوی مخازن موقت باقی‌مانده...');
+            try {
+              const repos = await ghApi('https://api.github.com/user/repos?per_page=100');
+              const orphan = repos.filter(r => r.name.startsWith('rb-temp-'));
+              log(`📋 ${orphan.length} مخزن موقت پیدا شد.`);
+              for (const repo of orphan) {
+                log(`🗑️ حذف مخزن: ${repo.full_name}`);
+                await ghApi(`https://api.github.com/repos/${repo.full_name}`, { method: 'DELETE' }).catch(() => {});
               }
-            }
-
-            err('تمام تلاش‌های آپلود ناموفق بود.');
-            return null;
+            } catch(e) { err('خطا در پاکسازی مخازن قدیمی:', e.message); }
           }
 
-          async function sendFileToChat(chatId, fileId, text = '', keypad = null, keypadType = 'New') {
-            const sendBody = { chat_id: chatId, file_id: fileId, text };
-            if (keypad) {
-              sendBody.chat_keypad = keypad;
-              sendBody.chat_keypad_type = keypadType;
-            }
-            const sendRes = await api('sendFile', sendBody);
-            return sendRes?.data?.message_id || null;
+          let tempRepo = null;       // { owner, repo, fullName, cloneUrl }
+          let localRepoPath = '/tmp/current-temp-repo';
+          let repoPushCount = 0;
+          const MAX_FILES_IN_REPO = 80;   // avoid suspicious activity
+
+          async function createTempRepo() {
+            const name = `rb-temp-${Date.now()}-${Math.floor(Math.random()*10000)}`;
+            log(`📦 ساخت مخزن موقت: ${name}`);
+            const data = await ghApi('https://api.github.com/user/repos', {
+              method: 'POST',
+              body: JSON.stringify({
+                name,
+                auto_init: false,
+                private: false,
+                description: 'Utility browser temp storage'
+              })
+            });
+            log('✅ مخزن موقت ساخته شد:', data.full_name);
+            return {
+              owner: data.full_name.split('/')[0],
+              repo: name,
+              fullName: data.full_name,
+              cloneUrl: data.clone_url
+            };
           }
 
-          async function uploadAndSendFileNormal(chatId, filePath, fileType, caption = '', keypad = null) {
-            // برای اسکرین‌شات و PDF از Image/File استفاده می‌کنیم، اگر نوع اول نشد، File را امتحان کن
-            const fallback = (fileType === 'Image') ? 'File' : null;
-            const fileId = await uploadSingleFile(filePath, fileType, fallback);
-            if (!fileId) return false;
-            const msgId = await sendFileToChat(chatId, fileId, caption, keypad);
-            return !!msgId;
+          async function deleteTempRepo(fullName) {
+            log(`🗑️ حذف مخزن موقت: ${fullName}`);
+            await ghApi(`https://api.github.com/repos/${fullName}`, { method: 'DELETE' }).catch(() => {});
+          }
+
+          function initLocalRepo() {
+            if (fs.existsSync(localRepoPath)) fs.rmSync(localRepoPath, { recursive: true, force: true });
+            fs.mkdirSync(localRepoPath, { recursive: true });
+            process.chdir(localRepoPath);
+            execSync('git init', {stdio:'pipe'});
+            execSync('git checkout -b main', {stdio:'pipe'});
+            execSync('git config user.name "browser-agent"', {stdio:'pipe'});
+            execSync('git config user.email "agent@browser.tools"', {stdio:'pipe'});
+            fs.writeFileSync('README.md', '# Browser Agent Temp Storage\n');
+            execSync('git add README.md', {stdio:'pipe'});
+            execSync('git commit -m "Init"', {stdio:'pipe'});
+          }
+
+          async function setupTempRepo() {
+            if (!tempRepo) {
+              tempRepo = await createTempRepo();
+              initLocalRepo();
+              const pushUrl = tempRepo.cloneUrl.replace('https://', `https://${PAT_TOKEN}@`);
+              execSync(`git remote add origin ${pushUrl}`, {stdio:'pipe'});
+              execSync('git push -u origin main', {stdio:'pipe'});
+              repoPushCount = 0;
+            }
+          }
+
+          async function uploadFileToTempRepo(localPath, remoteFolder, remoteFileName) {
+            // Ensure repo is ready
+            if (!tempRepo || repoPushCount >= MAX_FILES_IN_REPO) {
+              if (tempRepo) {
+                await deleteTempRepo(tempRepo.fullName);
+                tempRepo = null;
+                repoPushCount = 0;
+              }
+              await setupTempRepo();
+            }
+
+            const folderPath = path.join(localRepoPath, remoteFolder);
+            if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+
+            const dest = path.join(folderPath, remoteFileName);
+            fs.copyFileSync(localPath, dest);
+
+            process.chdir(localRepoPath);
+            execSync(`git add "${remoteFolder}/${remoteFileName}"`, {stdio:'pipe'});
+            execSync(`git commit -m "Add ${remoteFolder}/${remoteFileName}"`, {stdio:'pipe'});
+
+            try {
+              execSync('git push', {stdio:'pipe'});
+              log(`📤 فایل ${remoteFileName} push شد.`);
+              repoPushCount++;
+            } catch(pushErr) {
+              const msg = pushErr.stderr ? pushErr.stderr.toString() : pushErr.message;
+              if (msg.includes('Repository not found') || msg.includes('not found')) {
+                log('⚠️ مخزن گم شد، بازسازی...');
+                tempRepo = null;
+                repoPushCount = 0;
+                await setupTempRepo();
+                return await uploadFileToTempRepo(localPath, remoteFolder, remoteFileName);
+              } else throw pushErr;
+            }
+
+            const rawUrl = `https://raw.githubusercontent.com/${tempRepo.owner}/${tempRepo.repo}/main/${encodeURIComponent(remoteFolder)}/${encodeURIComponent(remoteFileName)}`;
+            return rawUrl;
+          }
+
+          async function uploadFilesToTempRepo(filesArray, folderId) {
+            // filesArray: [{ localPath, fileName }]
+            const links = [];
+            for (const f of filesArray) {
+              const link = await uploadFileToTempRepo(f.localPath, folderId, f.fileName);
+              links.push(link);
+            }
+            return links;
           }
 
           // ======================== تبدیل خودکار ویدیو به h264 + AAC ========================
@@ -274,89 +331,54 @@ jobs:
           }
 
           // ======================== تقسیم هوشمند ویدیو ========================
-          async function splitAndSendVideo(chatId, videoPath, baseName, keypad) {
-            const stats = fs.statSync(videoPath);
-            const sizeMB = (stats.size / (1024 * 1024)).toFixed(1);
-            log(`🎬 تقسیم ویدیو ${baseName} (${sizeMB}MB) به قطعات ۲ دقیقه‌ای...`);
-
-            let segmentTime = 120;
-            let success = false;
-
-            while (segmentTime >= 30) {
-              const chunkDir = `/tmp/video_chunks_${Date.now()}`;
-              fs.mkdirSync(chunkDir, { recursive: true });
-              const outputPattern = path.join(chunkDir, 'part_%03d.mp4');
-
-              try {
-                execSync(
-                  `ffmpeg -i "${videoPath}" -c copy -f segment -segment_time ${segmentTime} -reset_timestamps 1 "${outputPattern}"`,
-                  { stdio: 'inherit', timeout: 600000 }
-                );
-              } catch(e) {
-                err('تقسیم با ffmpeg شکست:', e.message);
-                fs.rmdirSync(chunkDir, { recursive: true });
-                return false;
-              }
-
-              const chunks = fs.readdirSync(chunkDir)
-                .filter(f => f.endsWith('.mp4'))
-                .sort((a,b) => {
-                  const numA = parseInt(a.match(/\d+/)[0]);
-                  const numB = parseInt(b.match(/\d+/)[0]);
-                  return numA - numB;
-                });
-
-              if (chunks.length === 0) {
-                fs.rmdirSync(chunkDir, { recursive: true });
-                return false;
-              }
-
-              const tooLarge = chunks.some(f => fs.statSync(path.join(chunkDir, f)).size > 50 * 1024 * 1024);
-              if (tooLarge) {
-                log(`⚠️ قطعه‌ای بیش از ۵۰MB، کاهش زمان قطعه به ${segmentTime / 2} ثانیه`);
-                fs.rmdirSync(chunkDir, { recursive: true });
-                segmentTime = Math.floor(segmentTime / 2);
-                continue;
-              }
-
-              const total = chunks.length;
-              await sendMessage(chatId, `📦 ویدیو به ${total} قطعه mp4 تقسیم و ارسال می‌شود...`);
-
-              for (let i = 0; i < chunks.length; i++) {
-                const chunkPath = path.join(chunkDir, chunks[i]);
-                const chunkName = `${baseName}.part${String(i+1).padStart(2,'0')}.mp4`;
-                const chunkSize = (fs.statSync(chunkPath).size / (1024 * 1024)).toFixed(1);
-                log(`📤 قطعه ${i+1}/${total}: ${chunkName} (${chunkSize}MB)`);
-
-                const finalPath = path.join(chunkDir, chunkName);
-                fs.renameSync(chunkPath, finalPath);
-
-                const fileId = await uploadSingleFile(finalPath, 'Video');
-                if (!fileId) {
-                  err(`❌ آپلود قطعه ${i+1} ناموفق`);
-                  await sendMessage(chatId, `❌ خطا در ارسال قطعه ${i+1}/${total}`);
-                  try { fs.unlinkSync(finalPath); } catch(e) {}
-                  continue;
+          async function splitVideoSafe(inputPath, chunkDir, targetSizeMB = 80, maxSizeMB = 95) {
+            const stats = fs.statSync(inputPath);
+            const maxBytes = maxSizeMB * 1024 * 1024;
+            if (stats.size <= maxBytes) {
+              const dest = path.join(chunkDir, 'part_000.mp4');
+              fs.copyFileSync(inputPath, dest);
+              return [dest];
+            }
+            try {
+              const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim());
+              const br = parseFloat(execSync(`ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "${inputPath}"`, {encoding:'utf8'}).trim());
+              const segTime = Math.max(30, Math.floor((targetSizeMB * 8 * 1024 * 1024) / br));
+              log(`🎯 تقسیم: bitrate ${(br/1000).toFixed(0)}kbps, قطعه‌های ${segTime}s`);
+              const pattern = path.join(chunkDir, 'part_%03d.mp4');
+              execSync(`ffmpeg -i "${inputPath}" -c copy -f segment -segment_time ${segTime} -reset_timestamps 1 "${pattern}"`, {stdio:'inherit', timeout:600000});
+              let files = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
+              // re-split any chunk that is still too big
+              for (const fname of files) {
+                const fpath = path.join(chunkDir, fname);
+                if (fs.statSync(fpath).size > maxBytes) {
+                  log(`⚠️ قطعه ${fname} بزرگتر از حد مجاز، تقسیم مجدد...`);
+                  const subDur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${fpath}"`, {encoding:'utf8'}).trim());
+                  const half = Math.floor(subDur / 2);
+                  const subDir = path.join(chunkDir, `sub_${Date.now()}`);
+                  fs.mkdirSync(subDir, { recursive: true });
+                  execSync(`ffmpeg -i "${fpath}" -c copy -f segment -segment_time ${half} -reset_timestamps 1 "${subDir}/sub_%03d.mp4"`, {stdio:'inherit', timeout:600000});
+                  const subChunks = fs.readdirSync(subDir).filter(f => f.endsWith('.mp4')).sort();
+                  const baseNum = parseInt(fname.match(/\d+/)[0]) * 100;
+                  for (let i = 0; i < subChunks.length; i++) {
+                    const newName = `part_${baseNum + i}_r.mp4`;
+                    fs.renameSync(path.join(subDir, subChunks[i]), path.join(chunkDir, newName));
+                  }
+                  fs.rmSync(subDir, { recursive: true });
+                  fs.unlinkSync(fpath);
                 }
-
-                const isLast = (i === chunks.length - 1);
-                const caption = isLast ? `🎬 ${baseName} (قطعه آخر)` : `📦 ${chunkName} (${chunkSize}MB)`;
-                await sendFileToChat(chatId, fileId, caption, (isLast ? keypad : null));
-                await sleep(3000);
-                try { fs.unlinkSync(finalPath); } catch(e) {}
               }
-
-              fs.rmdirSync(chunkDir, { recursive: true });
-              success = true;
-              break;
+              files = fs.readdirSync(chunkDir).filter(f => f.endsWith('.mp4')).sort();
+              return files.map(f => path.join(chunkDir, f));
+            } catch(e) {
+              err('تقسیم ویدیو شکست:', e.message);
+              return [];
             }
+          }
 
-            if (!success) {
-              err('تقسیم ویدیو به قطعات زیر ۵۰MB ممکن نشد.');
-              await sendMessage(chatId, '❌ حجم ویدیو بیش از حد بالاست، امکان ارسال وجود ندارد.');
-              return false;
-            }
-            return true;
+          // ======================== ارسال لینک دانلود به کاربر (به‌جای آپلود مستقیم) ========================
+          async function sendDownloadLink(chatId, link, caption = '') {
+            const text = caption ? `${caption}\n${link}` : link;
+            await sendMessage(chatId, text);
           }
 
           // ======================== کی‌پد کنترلی ========================
@@ -837,20 +859,16 @@ jobs:
           }
 
           // ======================== اسکرین‌شات کامل و PDF ========================
-          async function takeFullPageScreenshot(page, chatId, keypad) {
-            const shotPath = `/tmp/fullshot_${chatId}_${Date.now()}.png`;
+          async function takeFullPageScreenshot(page) {
+            const shotPath = `/tmp/fullshot_${Date.now()}.png`;
             await page.screenshot({ path: shotPath, fullPage: true });
-            const msgId = await uploadAndSendFileNormal(chatId, shotPath, 'Image', '🖼️ اسکرین‌شات کامل صفحه', keypad);
-            try { fs.unlinkSync(shotPath); } catch(e) {}
-            return !!msgId;
+            return shotPath;
           }
 
-          async function savePdf(page, chatId, keypad) {
-            const pdfPath = `/tmp/page_${chatId}_${Date.now()}.pdf`;
+          async function savePdf(page) {
+            const pdfPath = `/tmp/page_${Date.now()}.pdf`;
             await page.pdf({ path: pdfPath, format: 'A4', printBackground: true });
-            const msgId = await uploadAndSendFileNormal(chatId, pdfPath, 'File', '📄 PDF صفحه', keypad);
-            try { fs.unlinkSync(pdfPath); } catch(e) {}
-            return !!msgId;
+            return pdfPath;
           }
 
           // ======================== زوم ========================
@@ -882,20 +900,10 @@ jobs:
                 fileMode: false,
                 fileData: null,
                 pageUrlAtFile: '',
-                lastScreenshotMsgId: null,
-                tempMessageIds: [],
                 zoomLevel: 1.0
               });
             }
             return chatStates.get(chatId);
-          }
-
-          async function deleteTempMessages(chatId) {
-            const state = getState(chatId);
-            for (const msgId of state.tempMessageIds) {
-              try { await deleteMessage(chatId, msgId); } catch(e) {}
-            }
-            state.tempMessageIds = [];
           }
 
           function resetAllStates(state) {
@@ -919,17 +927,24 @@ jobs:
             });
           }
 
-          async function updateScreenshot(page, chatId) {
-            const state = getState(chatId);
-            const shotPath = `/tmp/shot_${chatId}_${Date.now()}.png`;
-            await page.screenshot({ path: shotPath, fullPage: false });
-            if (state.lastScreenshotMsgId) {
-              try { await deleteMessage(chatId, state.lastScreenshotMsgId); } catch(e) {}
-            }
-            const keypad = buildControlKeypad();
-            const msgId = await uploadAndSendFileNormal(chatId, shotPath, 'Image', '', keypad);
-            if (msgId) state.lastScreenshotMsgId = msgId;
-            try { fs.unlinkSync(shotPath); } catch(e) {}
+          // ======================== ارسال اسکرین‌شات (لینک موقت) ========================
+          async function sendScreenshotLink(page, chatId, fullPage = false) {
+            const shotPath = fullPage ? await takeFullPageScreenshot(page) : `/tmp/shot_${chatId}_${Date.now()}.png`;
+            if (!fullPage) await page.screenshot({ path: shotPath, fullPage: false });
+            const fileName = `screenshot_${Date.now()}.png`;
+            const link = await uploadFileToTempRepo(shotPath, 'screenshots', fileName);
+            await sendMessage(chatId, `📸 اسکرین‌شات:\n${link}`);
+            try { fs.unlinkSync(shotPath); } catch(_) {}
+            return link;
+          }
+
+          async function sendPdfLink(page, chatId) {
+            const pdfPath = await savePdf(page);
+            const fileName = `page_${Date.now()}.pdf`;
+            const link = await uploadFileToTempRepo(pdfPath, 'pdfs', fileName);
+            await sendMessage(chatId, `📄 PDF:\n${link}`);
+            try { fs.unlinkSync(pdfPath); } catch(_) {}
+            return link;
           }
 
           // ======================== پردازش دکمه‌ها ========================
@@ -948,14 +963,9 @@ jobs:
                 if (cnt === 0) {
                   await sendMessage(chatId, '⚠️ هیچ ناحیه اسکرولی یافت نشد.');
                   state.scrollMultiMode = false;
-                  await updateScreenshot(page, chatId);
+                  await sendScreenshotLink(page, chatId);
                 } else {
-                  const shotPath = `/tmp/scroll_${chatId}_${Date.now()}.png`;
-                  await page.screenshot({ path: shotPath, fullPage: false });
-                  if (state.lastScreenshotMsgId) try { await deleteMessage(chatId, state.lastScreenshotMsgId); } catch(e) {}
-                  const msgId = await uploadAndSendFileNormal(chatId, shotPath, 'Image', '', keypad);
-                  if (msgId) state.lastScreenshotMsgId = msgId;
-                  try { fs.unlinkSync(shotPath); } catch(e) {}
+                  await sendScreenshotLink(page, chatId); // send current view with highlights
                   await sendMessage(chatId, `🟢 ${cnt} ناحیه اسکرول (سبز) نشانه‌گذاری شد.\nشماره ناحیه را وارد کنید.`);
                 }
                 return;
@@ -973,14 +983,9 @@ jobs:
                 if (selCnt === 0) {
                   await sendMessage(chatId, '⚠️ هیچ عنصری یافت نشد.');
                   state.selectionMode = false;
-                  await updateScreenshot(page, chatId);
+                  await sendScreenshotLink(page, chatId);
                 } else {
-                  const selShot = `/tmp/sel_${chatId}_${Date.now()}.png`;
-                  await page.screenshot({ path: selShot, fullPage: false });
-                  if (state.lastScreenshotMsgId) try { await deleteMessage(chatId, state.lastScreenshotMsgId); } catch(e) {}
-                  const msgId = await uploadAndSendFileNormal(chatId, selShot, 'Image', '', keypad);
-                  if (msgId) state.lastScreenshotMsgId = msgId;
-                  try { fs.unlinkSync(selShot); } catch(e) {}
+                  await sendScreenshotLink(page, chatId);
                   await sendMessage(chatId, `🔢 ${selCnt} عنصر نشانه‌گذاری شد. شماره را وارد کنید.`);
                 }
                 return;
@@ -992,7 +997,7 @@ jobs:
                   err('خطا استخراج متن:', e.message);
                   await sendMessage(chatId, '❌ خطا در استخراج متن.');
                 }
-                await updateScreenshot(page, chatId);
+                await sendScreenshotLink(page, chatId);
                 return;
               case 'VIDEOS':
                 state.videoMode = true;
@@ -1002,14 +1007,9 @@ jobs:
                 if (videos.length === 0) {
                   await sendMessage(chatId, '❌ هیچ ویدیویی پیدا نشد.');
                   state.videoMode = false;
-                  await updateScreenshot(page, chatId);
+                  await sendScreenshotLink(page, chatId);
                 } else {
-                  const vidShot = `/tmp/vid_${chatId}_${Date.now()}.png`;
-                  await page.screenshot({ path: vidShot, fullPage: false });
-                  if (state.lastScreenshotMsgId) try { await deleteMessage(chatId, state.lastScreenshotMsgId); } catch(e) {}
-                  const msgId = await uploadAndSendFileNormal(chatId, vidShot, 'Image', '', keypad);
-                  if (msgId) state.lastScreenshotMsgId = msgId;
-                  try { fs.unlinkSync(vidShot); } catch(e) {}
+                  await sendScreenshotLink(page, chatId);
                   await sendMessage(chatId, `🎥 ${videos.length} ویدیو (آبی) نشانه‌گذاری شد.\nشماره مورد نظر را بفرستید.`);
                 }
                 return;
@@ -1021,14 +1021,9 @@ jobs:
                 if (images.length === 0) {
                   await sendMessage(chatId, '❌ هیچ تصویری پیدا نشد.');
                   state.imageMode = false;
-                  await updateScreenshot(page, chatId);
+                  await sendScreenshotLink(page, chatId);
                 } else {
-                  const imgShot = `/tmp/img_${chatId}_${Date.now()}.png`;
-                  await page.screenshot({ path: imgShot, fullPage: false });
-                  if (state.lastScreenshotMsgId) try { await deleteMessage(chatId, state.lastScreenshotMsgId); } catch(e) {}
-                  const msgId = await uploadAndSendFileNormal(chatId, imgShot, 'Image', '', keypad);
-                  if (msgId) state.lastScreenshotMsgId = msgId;
-                  try { fs.unlinkSync(imgShot); } catch(e) {}
+                  await sendScreenshotLink(page, chatId);
                   await sendMessage(chatId, `🖼️ ${images.length} تصویر (نارنجی) نشانه‌گذاری شد.\nشماره مورد نظر را بفرستید.`);
                 }
                 return;
@@ -1040,22 +1035,17 @@ jobs:
                 if (files.length === 0) {
                   await sendMessage(chatId, '❌ هیچ فایلی پیدا نشد.');
                   state.fileMode = false;
-                  await updateScreenshot(page, chatId);
+                  await sendScreenshotLink(page, chatId);
                 } else {
-                  const fileShot = `/tmp/file_${chatId}_${Date.now()}.png`;
-                  await page.screenshot({ path: fileShot, fullPage: false });
-                  if (state.lastScreenshotMsgId) try { await deleteMessage(chatId, state.lastScreenshotMsgId); } catch(e) {}
-                  const msgId = await uploadAndSendFileNormal(chatId, fileShot, 'Image', '', keypad);
-                  if (msgId) state.lastScreenshotMsgId = msgId;
-                  try { fs.unlinkSync(fileShot); } catch(e) {}
+                  await sendScreenshotLink(page, chatId);
                   await sendMessage(chatId, `📁 ${files.length} فایل (بنفش) نشانه‌گذاری شد.\nشماره مورد نظر را بفرستید.`);
                 }
                 return;
               case 'FULL_SCREENSHOT':
-                await takeFullPageScreenshot(page, chatId, keypad);
+                await sendScreenshotLink(page, chatId, true);
                 break;
               case 'SAVE_PDF':
-                await savePdf(page, chatId, keypad);
+                await sendPdfLink(page, chatId);
                 break;
               case 'ENTER':
                 try {
@@ -1104,17 +1094,17 @@ jobs:
               }
               case 'HELP':
                 await sendMessage(chatId, '🎮 راهنما:\n⬆️⬇️ اسکرول هوشمند\n⌨️ تایپ\n🌐 آدرس جدید\n🔍 انتخاب با شماره\n📋 متن قابل مشاهده\n🎥 ویدیوها\n🖼️ تصاویر\n📁 فایل‌ها\n🖼️ اسکرین‌شات کامل\n📄 PDF\n🔍 زوم +/-\n📸 اسکرین‌شات\n↵ Enter\n🔄 رفرش\n🠔 عقب\n🔁 پروکسی\n✖️ لغو');
-                await updateScreenshot(page, chatId);
+                await sendScreenshotLink(page, chatId);
                 return;
               case 'CANCEL':
                 resetAllStates(state);
                 await sendMessage(chatId, '✖️ تمام عملیات‌های در حال اجرا لغو شد.');
-                await updateScreenshot(page, chatId);
+                await sendScreenshotLink(page, chatId);
                 return;
             }
 
             if (!['SCROLL_UP', 'SCROLL_DOWN', 'TYPE', 'GO_URL', 'SELECT', 'VIDEOS', 'IMAGES', 'FILES', 'CHANGE_PROXY', 'FULL_SCREENSHOT', 'SAVE_PDF'].includes(buttonId)) {
-              await updateScreenshot(page, chatId);
+              await sendScreenshotLink(page, chatId);
             }
           }
 
@@ -1127,27 +1117,24 @@ jobs:
               if (state.scrollSelectedIndex === null) {
                 const idx = parseInt(text);
                 if (isNaN(idx) || idx < 1 || idx > state.scrollAreasCount) {
-                  const m = await sendMessage(chatId, `❌ شماره بین ۱ تا ${state.scrollAreasCount} وارد کنید.`);
-                  if (m?.data?.message_id) state.tempMessageIds.push(m.data.message_id);
+                  await sendMessage(chatId, `❌ شماره بین ۱ تا ${state.scrollAreasCount} وارد کنید.`);
                   return;
                 }
                 state.scrollSelectedIndex = idx;
                 await removeScrollHighlights(page);
                 const dirText = state.scrollDirection === 'up' ? 'بالا' : 'پایین';
-                const m = await sendMessage(chatId, `✅ ناحیه ${idx} انتخاب شد.\nچند پیکسل به ${dirText} اسکرول کنم؟`);
-                if (m?.data?.message_id) state.tempMessageIds.push(m.data.message_id);
+                await sendMessage(chatId, `✅ ناحیه ${idx} انتخاب شد.\nچند پیکسل به ${dirText} اسکرول کنم؟`);
                 return;
               } else {
                 const px = parseInt(text);
                 if (isNaN(px) || px <= 0) {
-                  const m = await sendMessage(chatId, '❌ عدد مثبت وارد کنید.');
-                  if (m?.data?.message_id) state.tempMessageIds.push(m.data.message_id);
+                  await sendMessage(chatId, '❌ عدد مثبت وارد کنید.');
                   return;
                 }
                 await scrollAreaByPixel(page, state.scrollSelectedIndex, px, state.scrollDirection);
                 await sleep(300);
                 resetAllStates(state);
-                await updateScreenshot(page, chatId);
+                await sendScreenshotLink(page, chatId);
                 return;
               }
             }
@@ -1158,7 +1145,7 @@ jobs:
                 await page.keyboard.type(text, { delay: 50 });
                 await sleep(300);
               }
-              await updateScreenshot(page, chatId);
+              await sendScreenshotLink(page, chatId);
               return;
             }
 
@@ -1171,7 +1158,7 @@ jobs:
                   await page.evaluate((zo) => { document.body.style.zoom = zo; }, state.zoomLevel.toString());
                 } catch(e) { err('بارگذاری ناموفق:', e.message); await sendMessage(chatId, '❌ خطا در باز کردن آدرس.'); }
               }
-              await updateScreenshot(page, chatId);
+              await sendScreenshotLink(page, chatId);
               return;
             }
 
@@ -1183,7 +1170,7 @@ jobs:
               await removeHighlights(page);
               state.selectionMode = false;
               await sleep(300);
-              await updateScreenshot(page, chatId);
+              await sendScreenshotLink(page, chatId);
               return;
             }
 
@@ -1205,17 +1192,31 @@ jobs:
                   return;
                 }
                 const baseName = path.basename(compatiblePath, path.extname(compatiblePath));
-                const sent = await splitAndSendVideo(chatId, compatiblePath, baseName, keypad);
-                if (!sent) await sendMessage(chatId, '❌ ارسال ویدیو ناموفق.');
-                try { fs.unlinkSync(res.path); } catch(e) {}
-                if (compatiblePath !== res.path) {
-                  try { fs.unlinkSync(compatiblePath); } catch(e) {}
+                const chunkDir = `/tmp/video_chunks_${Date.now()}`;
+                fs.mkdirSync(chunkDir, { recursive: true });
+                const chunks = splitVideoSafe(compatiblePath, chunkDir);
+                if (chunks.length === 0) {
+                  await sendMessage(chatId, '❌ خطا در تقسیم ویدیو.');
+                } else {
+                  const folderId = `video_${Date.now()}`;
+                  const filesList = chunks.map(p => ({ localPath: p, fileName: path.basename(p) }));
+                  const links = await uploadFilesToTempRepo(filesList, folderId);
+                  let msg = `🎬 ${baseName} (${chunks.length} قطعه)\n\n📥 لینک‌های دانلود:\n`;
+                  links.forEach((l, i) => msg += `${i+1}. ${l}\n`);
+                  await sendMessage(chatId, msg);
                 }
-              } else await sendMessage(chatId, '❌ دانلود ویدیو ناموفق.');
+                // cleanup
+                try { fs.unlinkSync(res.path); } catch(_) {}
+                if (compatiblePath !== res.path) try { fs.unlinkSync(compatiblePath); } catch(_) {}
+                for (const c of chunks) try { fs.unlinkSync(c); } catch(_) {}
+                try { fs.rmSync(chunkDir, { recursive: true }); } catch(_) {}
+              } else {
+                await sendMessage(chatId, '❌ دانلود ویدیو ناموفق.');
+              }
               await removeVideoHighlights(page);
               resetAllStates(state);
               await sleep(300);
-              await updateScreenshot(page, chatId);
+              await sendScreenshotLink(page, chatId);
               return;
             }
 
@@ -1230,14 +1231,16 @@ jobs:
               const res = await downloadImage(url, state.pageUrlAtImage);
               if (res.ok) {
                 const imgName = path.basename(res.path);
-                const sent = await uploadAndSendFileNormal(chatId, res.path, 'Image', `🖼️ ${imgName}`, keypad);
-                if (!sent) await sendMessage(chatId, '❌ ارسال تصویر ناموفق.');
-                try { fs.unlinkSync(res.path); } catch(e) {}
-              } else await sendMessage(chatId, '❌ دانلود تصویر ناموفق.');
+                const link = await uploadFileToTempRepo(res.path, 'images', imgName);
+                await sendMessage(chatId, `🖼️ تصویر:\n${link}`);
+                try { fs.unlinkSync(res.path); } catch(_) {}
+              } else {
+                await sendMessage(chatId, '❌ دانلود تصویر ناموفق.');
+              }
               await removeImageHighlights(page);
               resetAllStates(state);
               await sleep(300);
-              await updateScreenshot(page, chatId);
+              await sendScreenshotLink(page, chatId);
               return;
             }
 
@@ -1252,20 +1255,22 @@ jobs:
               const res = await downloadFile(url, state.pageUrlAtFile);
               if (res.ok) {
                 const fileName = path.basename(res.path);
-                const sent = await uploadAndSendFileNormal(chatId, res.path, 'File', `📁 ${fileName}`, keypad);
-                if (!sent) await sendMessage(chatId, '❌ ارسال فایل ناموفق.');
-                try { fs.unlinkSync(res.path); } catch(e) {}
-              } else await sendMessage(chatId, '❌ دانلود فایل ناموفق.');
+                const link = await uploadFileToTempRepo(res.path, 'files', fileName);
+                await sendMessage(chatId, `📁 فایل:\n${link}`);
+                try { fs.unlinkSync(res.path); } catch(_) {}
+              } else {
+                await sendMessage(chatId, '❌ دانلود فایل ناموفق.');
+              }
               await removeFileHighlights(page);
               resetAllStates(state);
               await sleep(300);
-              await updateScreenshot(page, chatId);
+              await sendScreenshotLink(page, chatId);
               return;
             }
 
             if (text === '/start') {
               await sendMessage(chatId, '🟢 ربات آماده.');
-              if (!state.lastScreenshotMsgId) await updateScreenshot(page, chatId);
+              await sendScreenshotLink(page, chatId);
             } else if (text === 'help') {
               await sendMessage(chatId, '🎮 دکمه‌ها:\n⬆️⬇️ اسکرول\n⌨️ تایپ\n🌐 آدرس جدید\n🔍 انتخاب با شماره\n📋 متن\n🎥 ویدیوها\n🖼️ تصاویر\n📁 فایل‌ها\n🖼️ اسکرین‌شات کامل\n📄 PDF\n🔍 زوم\n📸 اسکرین‌شات\n↵ Enter\n🔄 رفرش\n🠔 عقب\n🔁 پروکسی\n✖️ لغو');
             }
@@ -1336,7 +1341,7 @@ jobs:
                   if (blocked) { log('پروکسی جدید بلاک دارد.'); newIdx = (newIdx + 1) % this.proxies.length; continue; }
                   this.currentProxyIndex = newIdx;
                   log(`✅ پروکسی به ${newIdx+1} تغییر کرد.`);
-                  if (OWNER) await updateScreenshot(this.page, OWNER);
+                  if (OWNER) await sendScreenshotLink(this.page, OWNER);
                   return true;
                 } catch(e) { log('خطا با پروکسی:', e.message); newIdx = (newIdx + 1) % this.proxies.length; }
               }
@@ -1351,6 +1356,11 @@ jobs:
               const bot = me?.data?.bot;
               if (!bot?.username) { err('توکن نامعتبر'); process.exit(1); }
               log('✅ ربات:', bot.username);
+
+              // پاکسازی مخازن قدیمی
+              await deleteAllOrphanTempRepos();
+              // ساخت مخزن اولیه
+              await setupTempRepo();
 
               if (!fs.existsSync(PROXY_FILE)) {
                 err(`فایل ${PROXY_FILE} یافت نشد.`);
@@ -1385,7 +1395,7 @@ jobs:
               }
               log(`✅ تاریخچه پاک (${flushed} آپدیت). offset: ${offset || 'ندارد'}`);
 
-              if (OWNER) await updateScreenshot(page, OWNER);
+              if (OWNER) await sendScreenshotLink(page, OWNER);
 
               const cleanupInterval = setInterval(() => {
                 log('🧹 پاکسازی خودکار فایل‌های موقت...');
@@ -1417,11 +1427,8 @@ jobs:
                       const msg = upd.new_message;
                       if (!msg) continue;
 
-                      const state = getState(chatId);
                       const buttonId = msg.aux_data?.button_id;
                       const text = (msg.text || '').trim();
-
-                      await deleteTempMessages(chatId);
 
                       try {
                         if (buttonId) {
@@ -1435,7 +1442,7 @@ jobs:
                         const st = getState(chatId);
                         resetAllStates(st);
                         await sendMessage(chatId, '⚠️ خطا. حالت‌ها ریست شد.');
-                        try { await updateScreenshot(page, chatId); } catch(e) {}
+                        try { await sendScreenshotLink(page, chatId); } catch(e) {}
                       }
                       page = browserManager.page;
                     }
@@ -1452,6 +1459,7 @@ jobs:
               clearInterval(cleanupInterval);
               await browserManager.browser.close();
               browserManager.xrayProc.kill();
+              if (tempRepo) await deleteTempRepo(tempRepo.fullName);
               if (OWNER) await sendMessage(OWNER, '⏹️ ربات خاموش شد.');
             } catch(fatalError) {
               err('🚨 خطای مرگبار:', fatalError.message);
