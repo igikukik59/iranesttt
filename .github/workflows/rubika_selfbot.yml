@@ -42,19 +42,16 @@ jobs:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           cat > agent.cjs << 'ENDSCRIPT'
-          const { spawn, execSync, exec } = require('child_process');
+          const { spawn, execSync, spawnSync } = require('child_process');
           const fs = require('fs');
           const path = require('path');
           const puppeteer = require('puppeteer-extra');
           const StealthPlugin = require('puppeteer-extra-plugin-stealth');
           puppeteer.use(StealthPlugin());
 
-          // مسیر مطلق فایل xray قبل از هرگونه تغییر دایرکتوری
           const XRAY_PATH = path.join(process.cwd(), 'xray', 'xray');
-
           const TARGET_URL = 'https://duckduckgo.com';
 
-          // ======================== لیست پروکسی‌های ثابت ========================
           const PROXIES = [
             "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@104.18.12.149:2096?allowInsecure=1&encryption=none&fp=chrome&host=sni.jpmj.dev&security=tls&sni=sni.jpmj.dev&type=ws",
             "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.74.34:443?allowInsecure=1&encryption=none&host=sni.111000.dynv6.net&security=tls&sni=sni.111000.dynv6.net&type=ws",
@@ -212,7 +209,6 @@ jobs:
             return await api('sendMessage', { chat_id: chatId, text, ...extra });
           }
 
-          // تابع به‌روز‌رسانی کیبورد با استفاده از editChatKeypad (برای پایداری)
           async function updateKeyboard(chatId) {
             const keypad = buildControlKeypad();
             const res = await api('editChatKeypad', {
@@ -357,7 +353,7 @@ jobs:
             return links;
           }
 
-          // ======================== تبدیل خودکار ویدیو به h264 + AAC ========================
+          // ======================== تبدیل ویدیو ========================
           async function ensureCompatibleVideo(inputPath) {
             try {
               const probe = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`, { encoding: 'utf8' }).trim();
@@ -381,7 +377,7 @@ jobs:
             }
           }
 
-          // ======================== تقسیم هوشمند ویدیو ========================
+          // ======================== تقسیم ویدیو ========================
           async function splitVideoSafe(inputPath, chunkDir, targetSizeMB = 80, maxSizeMB = 95) {
             const stats = fs.statSync(inputPath);
             const maxBytes = maxSizeMB * 1024 * 1024;
@@ -425,7 +421,7 @@ jobs:
             }
           }
 
-          // ======================== کی‌پد کنترلی ========================
+          // ======================== کی‌پد ========================
           function buildControlKeypad() {
             return {
               rows: [
@@ -643,7 +639,7 @@ jobs:
             });
           }
 
-          // ======================== ویدیوهای صفحه ========================
+          // ======================== ویدیوها ========================
           async function highlightVideoElements(page) {
             const pageUrl = page.url();
             const videoData = await page.evaluate(() => {
@@ -757,7 +753,7 @@ jobs:
             });
           }
 
-          // ======================== فایل‌های قابل دانلود ========================
+          // ======================== فایل‌ها ========================
           async function highlightFiles(page) {
             const pageUrl = page.url();
             const fileData = await page.evaluate(() => {
@@ -802,7 +798,7 @@ jobs:
             });
           }
 
-          // ======================== استخراج متن با مارک‌داون ========================
+          // ======================== استخراج متن ========================
           async function extractVisibleText(page) {
             return await page.evaluate(() => {
               const walker = document.createTreeWalker(
@@ -836,25 +832,60 @@ jobs:
             });
           }
 
-          // ======================== دانلودها (چندرشته‌ای با aria2c) ========================
+          // ======================== دانلودها (استفاده از spawnSync برای جلوگیری از خطای Shell) ========================
+          function runSpawn(cmd, args, options = {}) {
+            log(`▶️ اجرا: ${cmd} ${args.join(' ')}`);
+            const proc = spawnSync(cmd, args, {
+              stdio: ['pipe', 'pipe', 'pipe'],
+              timeout: options.timeout || 300000,
+              encoding: 'utf8',
+              ...options
+            });
+            if (proc.status !== 0) {
+              const errMsg = proc.stderr?.toString() || proc.error?.message || '';
+              log(`🔴 خطا: ${errMsg.substring(0, 500)}`);
+              return { success: false, error: errMsg };
+            }
+            log('🟢 موفق');
+            return { success: true, stdout: proc.stdout?.toString() };
+          }
+
           async function downloadImage(url, referer) {
             const dir = '/tmp/downloaded_images';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            const outPath = path.join(dir, `img_${Date.now()}_${path.basename(new URL(url).pathname) || 'image.jpg'}`);
-            try {
-              execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 60000 });
-              return { ok: true, path: outPath };
-            } catch(e) { err('دانلود تصویر خطا:', e.message); return { ok: false }; }
+            const outName = `img_${Date.now()}_${path.basename(new URL(url).pathname) || 'image.jpg'}`;
+            const outPath = path.join(dir, outName);
+            const args = [
+              '--socks5-proxy=127.0.0.1:10808',
+              '--check-certificate=false',
+              '-x16', '-s16', '-k1M',
+              `--user-agent=Mozilla/5.0`,
+              `--referer=${referer}`,
+              `--dir=${dir}`,
+              `--out=${outName}`,
+              url
+            ];
+            const res = runSpawn('aria2c', args);
+            return res.success ? { ok: true, path: outPath } : { ok: false };
           }
 
           async function downloadFile(url, referer) {
             const dir = '/tmp/downloaded_files';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            const outPath = path.join(dir, path.basename(new URL(url).pathname) || `file_${Date.now()}`);
-            try {
-              execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 120000 });
-              return { ok: true, path: outPath };
-            } catch(e) { err('دانلود فایل خطا:', e.message); return { ok: false }; }
+            const outName = path.basename(new URL(url).pathname) || `file_${Date.now()}`;
+            const outPath = path.join(dir, outName);
+            const args = [
+              '--socks5-proxy=127.0.0.1:10808',
+              '--check-certificate=false',
+              '-x16', '-s16', '-k1M',
+              `--user-agent=Mozilla/5.0`,
+              `--referer=${referer}`,
+              `--dir=${dir}`,
+              `--out=${outName}`,
+              url
+            ];
+            const res = runSpawn('aria2c', args, { timeout: 120000 });
+            return res.success ? { ok: true, path: outPath } : { ok: false };
           }
 
           async function downloadVideo(url, type, referer, platform, pageUrl) {
@@ -863,7 +894,6 @@ jobs:
             log(`📂 پوشه دانلود: ${downloadDir}`);
 
             const ytDlpArgs = [
-              'yt-dlp',
               '--no-playlist',
               '--max-downloads', '1',
               '--merge-output-format', 'mp4',
@@ -876,56 +906,47 @@ jobs:
               '-o', path.join(downloadDir, '%(title).200s_%(id)s.%(ext)s')
             ];
 
-            function runCmd(cmd) {
-              log('▶️ اجرای دستور:', cmd);
-              try {
-                const output = execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 600000, encoding: 'utf8' });
-                if (output) log('🟢 خروجی:', output.toString().substring(0, 500));
-                return { success: true };
-              } catch(e) {
-                const stderr = e.stderr?.toString() || '';
-                const stdout = e.stdout?.toString() || '';
-                log('🔴 خطا در اجرای فرمان:', stderr.substring(0, 500));
-                return { success: false, error: stderr || e.message, stdout };
-              }
-            }
-
             if (type === 'direct' && url.startsWith('blob:')) {
-              const cmd = `${ytDlpArgs.join(' ')} "${pageUrl}"`;
-              const res = runCmd(cmd);
+              const res = runSpawn('yt-dlp', [...ytDlpArgs, pageUrl]);
               if (!res.success) return { ok: false, error: res.error, downloadDir };
             } else if (type === 'direct') {
-              const ariaOut = path.join(downloadDir, `video_${Date.now()}_aria.mp4`);
-              const ariaCmd = `aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${downloadDir}" --out="${path.basename(ariaOut)}" "${url}"`;
-              const ariaRes = runCmd(ariaCmd);
+              const outName = `video_${Date.now()}_aria.mp4`;
+              const ariaArgs = [
+                '--socks5-proxy=127.0.0.1:10808',
+                '--check-certificate=false',
+                '-x16', '-s16', '-k1M',
+                `--user-agent=Mozilla/5.0`,
+                `--referer=${referer}`,
+                `--dir=${downloadDir}`,
+                `--out=${outName}`,
+                url
+              ];
+              const ariaRes = runSpawn('aria2c', ariaArgs);
               if (ariaRes.success) {
+                const ariaOut = path.join(downloadDir, outName);
                 if (fs.existsSync(ariaOut)) return { ok: true, path: ariaOut, downloadDir };
-                const files = fs.readdirSync(downloadDir);
+                const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4'));
                 if (files.length > 0) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir };
               }
               log('🔁 تلاش با yt-dlp...');
-              const cmd = `${ytDlpArgs.join(' ')} "${pageUrl}"`;
-              const res = runCmd(cmd);
+              const res = runSpawn('yt-dlp', [...ytDlpArgs, pageUrl]);
               if (!res.success) return { ok: false, error: res.error, downloadDir };
             } else if (type === 'embed') {
-              const cmd = `${ytDlpArgs.join(' ')} "${url}"`;
-              const res = runCmd(cmd);
+              const res = runSpawn('yt-dlp', [...ytDlpArgs, url]);
               if (!res.success) return { ok: false, error: res.error, downloadDir };
             } else {
               return { ok: false, error: 'نوع ناشناخته', downloadDir };
             }
 
-            const files = fs.readdirSync(downloadDir).filter(f => !f.startsWith('.') && (f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm')));
+            const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'));
             if (files.length === 0) {
-              log('❌ هیچ فایلی در پوشه دانلود یافت نشد!');
               return { ok: false, error: 'No output file', downloadDir };
             }
             const targetFile = files.sort((a,b) => fs.statSync(path.join(downloadDir,b)).size - fs.statSync(path.join(downloadDir,a)).size)[0];
-            log('✅ فایل دانلود شده:', targetFile);
             return { ok: true, path: path.join(downloadDir, targetFile), downloadDir };
           }
 
-          // ======================== اسکرین‌شات کامل و PDF ========================
+          // ======================== اسکرین‌شات و PDF ========================
           async function takeFullPageScreenshot(page) {
             const shotPath = `/tmp/fullshot_${Date.now()}.png`;
             await page.screenshot({ path: shotPath, fullPage: true });
@@ -938,7 +959,6 @@ jobs:
             return pdfPath;
           }
 
-          // ======================== زوم ========================
           async function zoomPage(page, zoomIn = true) {
             const currentZoom = await page.evaluate(() => parseFloat(getComputedStyle(document.body).zoom || '1.0'));
             let newZoom = zoomIn ? Math.min(currentZoom + 0.1, 3.0) : Math.max(currentZoom - 0.1, 0.3);
@@ -1175,11 +1195,10 @@ jobs:
               default:
                 await sendScreenshotLink(page, chatId);
             }
-            // در انتها کیبورد را به‌روزرسانی کن
             await updateKeyboard(chatId);
           }
 
-          // ======================== پردازش ورودی‌های متنی ========================
+          // ======================== پردازش ورودی متنی ========================
           async function handleTextInput(page, chatId, text) {
             const state = getState(chatId);
 
