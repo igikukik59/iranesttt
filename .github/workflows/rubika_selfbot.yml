@@ -1,71 +1,183 @@
-name: 🔄 آپلود ۱۰۰MB با تلاش مجدد کلی (ضد ۵۰۳)
+name: 🚀 آپلود با پروکسی (دور زدن ۵۰MB)
 
 on:
   workflow_dispatch:
 
 jobs:
-  robust-whole-retry:
+  proxy-upload:
     runs-on: ubuntu-latest
     env:
       SESSION_B64: ${{ secrets.SESSION_DATA }}
-      SESSION_NAME: my_account
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: 📥 دریافت کد
+        uses: actions/checkout@v4
+
+      - name: 🐍 نصب پایتون
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: 📦 نصب کتابخانه
+      - name: 📦 نصب پیش‌نیازهای سیستم
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y proxychains4 curl unzip
+
+      - name: 📚 نصب کتابخانه‌های پایتون
         run: pip install rubpy==7.3.5
 
-      - name: 🔐 بازیابی سشن
-        run: echo "$SESSION_B64" | base64 -d > $SESSION_NAME.rp
-
-      - name: 🐍 ارسال با تلاش کلی و زمان انتظار
+      - name: ⬇️ دانلود و آماده‌سازی Xray
         run: |
-          python -c "
-          import asyncio, sys, time, traceback
+          wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -O /tmp/xray.zip
+          unzip -q /tmp/xray.zip -d xray
+          chmod +x xray/xray
 
-          from rubpy import Client
+      - name: 🔐 بازیابی فایل سشن
+        run: echo "$SESSION_B64" | base64 -d > my_account.rp
 
-          MAX_ATTEMPTS = 5
-          RETRY_DELAY = 30  # ثانیه بین تلاش‌ها
+      - name: 🧪 تست پروکسی‌ها و آپلود
+        run: |
+          PROXIES=$(grep -E '^(vless|trojan)://' config.txt)
+          if [ -z "$PROXIES" ]; then
+            echo "❌ هیچ پروکسی در config.txt پیدا نشد."
+            exit 1
+          fi
 
-          async def progress_cb(current, total):
-              pct = (current / total) * 100 if total else 0
-              print(f'[PROGRESS] {current:,}/{total:,} bytes ({pct:.1f}%)')
+          for URI in $PROXIES; do
+            echo -e "\n🔹 آزمایش پروکسی: ${URI:0:80}..."
+            
+            # تولید کانفیگ Xray و ذخیره در فایل موقت
+            python3 -c "
+import json, sys, urllib.parse
+uri = '${URI}'
+u = urllib.parse.urlparse(uri)
+params = dict(urllib.parse.parse_qsl(u.query))
+host = u.hostname
+port = u.port or (443 if u.scheme in ('vless','trojan') else 80)
 
-          async def main():
-              async with Client(name='$SESSION_NAME', timeout=1200) as app:
-                  print('✅ ورود انجام شد.')
-                  file_name = 'test_100mb.bin'
-                  with open(file_name, 'wb') as f:
-                      f.write(b'\0' * 100 * 1024 * 1024)
-                  print('📁 فایل ۱۰۰MB آماده شد.')
+if u.scheme == 'vless':
+    out = {
+        'protocol': 'vless',
+        'settings': {
+            'vnext': [{
+                'address': host, 'port': port,
+                'users': [{'id': u.username, 'encryption': params.get('encryption','none'), 'flow': ''}]
+            }]
+        },
+        'streamSettings': {
+            'network': params.get('type','tcp'),
+            'security': params.get('security','none')
+        }
+    }
+elif u.scheme == 'trojan':
+    out = {
+        'protocol': 'trojan',
+        'settings': {
+            'servers': [{'address': host, 'port': port, 'password': u.username}]
+        },
+        'streamSettings': {
+            'network': params.get('type','tcp'),
+            'security': params.get('security','none')
+        }
+    }
+else:
+    sys.exit(1)
 
-                  for attempt in range(1, MAX_ATTEMPTS+1):
-                      try:
-                          print(f'⏳ تلاش {attempt}/{MAX_ATTEMPTS} ...')
-                          start = time.time()
-                          result = await app.send_document(
-                              object_guid='me',
-                              document=file_name,
-                              caption=f'✅ تست مقاوم ۱۰۰MB - تلاش {attempt}',
-                              progress=progress_cb
-                          )
-                          elapsed = time.time() - start
-                          print(f'🎉 ارسال موفق در تلاش {attempt}! زمان: {elapsed:.1f}s')
-                          print('پاسخ:', result)
-                          return  # موفقیت‌آمیز -> خارج شو
-                      except Exception as e:
-                          print(f'❌ تلاش {attempt} شکست خورد:')
-                          traceback.print_exc()
-                          if attempt < MAX_ATTEMPTS:
-                              print(f'⏱️ صبر {RETRY_DELAY} ثانیه قبل از تلاش بعدی...')
-                              await asyncio.sleep(RETRY_DELAY)
-                          else:
-                              print('🛑 تمام تلاش‌ها ناموفق بود.')
-                              sys.exit(1)
+# تنظیمات انتقال
+net = out['streamSettings']['network']
+if net == 'ws':
+    out['streamSettings']['wsSettings'] = {
+        'path': params.get('path', '/'),
+        'headers': {'Host': params.get('host', host)}
+    }
+elif net == 'grpc':
+    out['streamSettings']['grpcSettings'] = {'serviceName': params.get('serviceName', '')}
 
-          asyncio.run(main())
-          "
+sec = out['streamSettings']['security']
+if sec in ('tls','reality'):
+    tls = {'serverName': params.get('sni', host)}
+    if sec == 'reality':
+        tls['fingerprint'] = params.get('fp', 'chrome')
+        tls['publicKey'] = params.get('pbk', '')
+        tls['shortId'] = params.get('sid', '')
+        tls['spiderX'] = ''
+    if params.get('allowInsecure') == '1':
+        tls['allowInsecure'] = True
+    if params.get('alpn'):
+        tls['alpn'] = params['alpn'].split(',')
+    out['streamSettings']['tlsSettings'] = tls
+else:
+    out['streamSettings']['security'] = 'none'
+
+config = {
+    'inbounds': [{'port': 10808, 'protocol': 'socks', 'settings': {'auth': 'noauth', 'udp': True}}],
+    'outbounds': [out]
+}
+
+with open('/tmp/xray_config.json', 'w') as f:
+    json.dump(config, f)
+"
+            # اجرای Xray در پس‌زمینه
+            ./xray/xray run -config /tmp/xray_config.json > /tmp/xray.log 2>&1 &
+            XRAY_PID=$!
+            sleep 2
+
+            # تست سریع با curl
+            echo "  🔍 تست اتصال SOCKS5..."
+            HTTP_CODE=$(curl --socks5 127.0.0.1:10808 -o /dev/null -s -w '%{http_code}' --max-time 5 http://www.gstatic.com/generate_204)
+            if [ "$HTTP_CODE" = "204" ]; then
+              echo "  ✅ پروکسی سالم است. شروع آپلود..."
+
+              # پیکربندی proxychains
+              cat > /tmp/proxychains.conf << EOF
+strict_chain
+quiet_mode
+tcp_read_time_out 15000
+tcp_connect_time_out 8000
+[ProxyList]
+socks5 127.0.0.1 10808
+EOF
+
+              # اجرای اسکریپت پایتون آپلود از طریق proxychains
+              proxychains4 -f /tmp/proxychains.conf python3 -c "
+import asyncio, logging, sys, time, traceback
+from rubpy import Client
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s')
+log = logging.getLogger('upload')
+
+async def main():
+    try:
+        async with Client(name='my_account', timeout=600) as app:
+            log.info('✅ ورود موفق')
+            # ساخت فایل ۱۰۰MB
+            file_path = '/tmp/test_100mb.bin'
+            with open(file_path, 'wb') as f:
+                f.write(b'\0' * 100 * 1024 * 1024)
+            log.info('📁 فایل ۱۰۰MB ساخته شد. آپلود شروع می‌شود...')
+            start = time.time()
+            await app.send_document('me', file_path, caption='🎉 تست ۱۰۰MB با پروکسی موفقیت‌آمیز!')
+            log.info(f'🎉 آپلود تمام شد. زمان: {time.time()-start:.1f}s')
+    except Exception:
+        traceback.print_exc()
+        sys.exit(1)
+
+asyncio.run(main())
+"
+              UPLOAD_EXIT=$?
+              kill $XRAY_PID 2>/dev/null
+
+              if [ $UPLOAD_EXIT -eq 0 ]; then
+                echo "  ✅ آپلود با موفقیت انجام شد!"
+                exit 0
+              else
+                echo "  ❌ آپلود شکست خورد (کد $UPLOAD_EXIT). امتحان پروکسی بعدی..."
+              fi
+            else
+              echo "  ❌ پروکسی خراب (HTTP $HTTP_CODE). رد می‌شود."
+              kill $XRAY_PID 2>/dev/null
+            fi
+          done
+
+          echo "⛔ همه پروکسی‌ها شکست خوردند."
+          exit 1
