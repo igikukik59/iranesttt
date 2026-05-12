@@ -1,7 +1,7 @@
 name: Connect to Rubika via Session
 
 on:
-  workflow_dispatch:  # فقط اجرای دستی
+  workflow_dispatch:
 
 jobs:
   connect:
@@ -21,33 +21,27 @@ jobs:
           python -m pip install --upgrade pip
           pip install rubpy python-dotenv
 
-      - name: 📁 Prepare session file
+      - name: 🔐 Decode session from secret
+        env:
+          SESSION_B64: ${{ secrets.RUBIKA_SESSION }}
         run: |
-          # کتابخونه rubpy به‌طور پیش‌فرض دنبال rubika_session.session می‌گرده
-          # فایل rubika_session.rp که تو ریپو هست رو به اسم استاندارد کپی می‌کنیم
-          if [ -f rubika_session.rp ]; then
-            cp rubika_session.rp rubika_session.session
-            echo "✅ Session file copied to rubika_session.session"
-          else
-            echo "❌ rubika_session.rp not found!"
-            exit 1
-          fi
+          # مینویسه توی rubika_session.session (همان فرمت SQLite)
+          echo "$SESSION_B64" | base64 -d > rubika_session.session
+          echo "✅ Session file restored."
 
-      - name: 🚀 Run connection script
+      - name: 🚀 Connect to Rubika
         run: |
           python << 'PYEOF'
-          import asyncio
-          import sys
+          import asyncio, sys
           from rubpy import Client
 
-          if sys.platform == 'win32':
+          if sys.platform == "win32":
               asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-          client = Client(name='rubika_session')  # rubika_session.session رو می‌خونه
+          client = Client(name='rubika_session')   # rubika_session.session رو می‌خونه
           try:
               client.start()
               print('✅ Connected to Rubika successfully!')
-              # ارسال یک پیام تأیید به خودت
               client.send_message('me', '✅ GitHub Actions connected successfully!')
               print('📤 Test message sent to Saved Messages.')
           finally:
