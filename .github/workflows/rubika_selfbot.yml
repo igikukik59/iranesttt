@@ -1,10 +1,10 @@
-name: 📦 Upload 10MB file & measure speed
+name: 📦 Upload 100MB + live speed
 
 on:
   workflow_dispatch:
 
 jobs:
-  upload-large:
+  upload-huge:
     runs-on: ubuntu-latest
     env:
       SESSION_B64: ${{ secrets.RUBIKA_SESSION }}
@@ -12,61 +12,82 @@ jobs:
       SESSION_FILE: rubika_session.rp
 
     steps:
-      - name: ⬇️ Checkout (optional)
-        uses: actions/checkout@v4
-
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - run: pip install rubpy==7.3.5
+      - run: echo "$SESSION_B64" | base64 -d > $SESSION_FILE
+      - run: ls -la $SESSION_FILE
 
-      - name: 📦 Install rubpy
-        run: pip install rubpy==7.3.5
-
-      - name: 🔐 Decode session
-        run: echo "$SESSION_B64" | base64 -d > $SESSION_FILE
-
-      - name: 📋 Check session file
-        run: ls -la $SESSION_FILE
-
-      - name: 🚀 Generate large file & upload with timing
+      - name: 🚀 Create 100MB file & upload with live progress
         run: |
           python << 'PYEOF'
-          import asyncio
-          import os
-          import time
+          import asyncio, os, time, sys
           from pathlib import Path
           from rubpy import Client
 
           async def main():
-              # 1. ساخت فایل 10 مگابایتی (داده تصادفی)
-              file_path = Path("large_10mb.bin")
-              target_size = 10 * 1024 * 1024  # 10 MB
+              # ۱. ساخت فایل ۱۰۰ مگابایتی
+              file_path = Path("huge_100mb.bin")
+              target_size = 100 * 1024 * 1024
               print(f"📄 Creating random file of size {target_size} bytes...")
               with open(file_path, "wb") as f:
                   f.write(os.urandom(target_size))
               size_mb = file_path.stat().st_size / (1024 * 1024)
               print(f"📁 File created: {file_path} ({size_mb:.2f} MB)")
 
-              # 2. اتصال و آپلود با زمان‌سنجی
+              # ۲. متغیرهای پیشرفت و زمان
+              last_update = [0]
+              last_bytes = [0]
+              start_time = time.time()
+
+              # ۳. تابع callback برای نمایش پیشرفت
+              def progress_callback(current: int, total: int):
+                  now = time.time()
+                  elapsed = now - start_time
+                  # سرعت لحظه‌ای (بر اساس کلی)
+                  instant_speed = current / elapsed if elapsed > 0 else 0
+                  percent = (current / total) * 100
+                  # نمایش در هر ۱٪ تغییر (یا حداقل هر ۲۵۰ میلی‌ثانیه)
+                  if percent - last_update[0] >= 1 or (now - getattr(progress_callback, "_last_print", 0) > 0.25):
+                      sys.stdout.write(
+                          f"\r⏳ Upload: {percent:.1f}% | "
+                          f"{current/(1024*1024):.1f}/{total/(1024*1024):.1f} MB | "
+                          f"🚀 {instant_speed/(1024*1024):.2f} MB/s   "
+                      )
+                      sys.stdout.flush()
+                      last_update[0] = percent
+                      progress_callback._last_print = now
+
+              progress_callback._last_print = 0
+
+              # ۴. اتصال و آپلود با callback
               try:
                   async with Client(name=os.environ["SESSION_NAME"]) as app:
-                      print("⏳ Uploading to Saved Messages...")
-                      start = time.time()
+                      print("⏳ Starting upload (100 MB)...")
+                      # upload returns a file_id that we can then use to send document
+                      file_id = await app.upload(
+                          file=str(file_path),
+                          progress=progress_callback,
+                          progress_args=()   # اطمینان از اینکه callback آرگومان‌های استاندارد: current, total
+                      )
+                      print("\n✅ File uploaded to Rubika server!")
+                      # ۵. ارسال فایل به Saved Messages
                       await app.send_document(
                           "me",
-                          str(file_path),
-                          caption="📦 Large 10MB file — speed test"
+                          file_id,
+                          caption="📦 100MB file — speed test"
                       )
-                      end = time.time()
-                      duration = end - start
-                      speed = (target_size / (1024 * 1024)) / duration  # MB/s
-                      print(f"✅ Upload completed!")
-                      print(f"⏱️ Duration: {duration:.2f} seconds")
-                      print(f"🚀 Average speed: {speed:.2f} MB/s")
+                      print("✅ Document sent to Saved Messages!")
+
               except Exception as e:
-                  print(f"❌ Upload failed: {e}")
+                  print(f"\n❌ Upload failed: {e}")
                   exit(1)
+
+              total_time = time.time() - start_time
+              print(f"⏱️ Total upload+send time: {total_time:.2f} seconds")
+              print(f"🚀 Overall speed: {target_size / total_time / (1024*1024):.2f} MB/s")
 
           asyncio.run(main())
           PYEOF
