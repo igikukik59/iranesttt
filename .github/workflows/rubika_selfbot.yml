@@ -22,7 +22,7 @@ jobs:
 
       - name: 🧰 نصب ابزارها
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y curl unzip python3-pip ffmpeg aria2
+          sudo apt-get update -qq && sudo apt-get install -y curl unzip python3-pip ffmpeg
           pip install yt-dlp
           wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -O /tmp/xray.zip
           unzip -q /tmp/xray.zip -d xray && chmod +x xray/xray
@@ -212,16 +212,18 @@ jobs:
 
           // ======================== تبدیل خودکار ویدیو به h264 + AAC ========================
           async function ensureCompatibleVideo(inputPath) {
+            // بررسی کدک با ffprobe
             try {
               const probe = execSync(`ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`, { encoding: 'utf8' }).trim();
               if (probe === 'h264') {
+                // در حال حاضر h264 است، بررسی صدا (اختیاری، ولی معمولاً اگر صدا aac نباشد روبیکا رد نمی‌کند)
                 const audioProbe = execSync(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`, { encoding: 'utf8' }).trim();
                 if (audioProbe === 'aac') {
                   log('ویدیو از قبل h264 + AAC است.');
-                  return inputPath;
+                  return inputPath; // سازگار است
                 }
               }
-            } catch(e) {}
+            } catch(e) { /* اگر ffprobe خطا داد، تبدیل می‌کنیم */ }
 
             log('ویدیو نیاز به تبدیل دارد...');
             const convertedPath = inputPath.replace(/\.\w+$/, '_converted.mp4');
@@ -728,13 +730,13 @@ jobs:
             });
           }
 
-          // ======================== دانلودها (چندرشته‌ای با aria2c) ========================
+          // ======================== دانلودها ========================
           async function downloadImage(url, referer) {
             const dir = '/tmp/downloaded_images';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const outPath = path.join(dir, `img_${Date.now()}_${path.basename(new URL(url).pathname) || 'image.jpg'}`);
             try {
-              execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 60000 });
+              execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 60000 });
               return { ok: true, path: outPath };
             } catch(e) { err('دانلود تصویر خطا:', e.message); return { ok: false }; }
           }
@@ -744,7 +746,7 @@ jobs:
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const outPath = path.join(dir, path.basename(new URL(url).pathname) || `file_${Date.now()}`);
             try {
-              execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 120000 });
+              execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 120000 });
               return { ok: true, path: outPath };
             } catch(e) { err('دانلود فایل خطا:', e.message); return { ok: false }; }
           }
@@ -754,7 +756,7 @@ jobs:
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const timestamp = Date.now();
 
-            // yt‑dlp با استفاده از aria2c به‌عنوان دانلودر خارجی (16 اتصال)
+            // دستور yt‑dlp بدون نگرانی از کدک چون بعداً تبدیل می‌کنیم
             const ytDlpCmd = [
               'yt-dlp',
               '--no-playlist',
@@ -762,8 +764,6 @@ jobs:
               '--force-ipv4',
               "--user-agent", "'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'",
               '--extractor-args', 'youtube:player_client=android_vr',
-              '--downloader', 'aria2c',
-              '--downloader-args', 'aria2c:-x 16 -s 16 -k 1M',
               '--proxy', 'socks5://127.0.0.1:10808'
             ].join(' ');
 
@@ -778,7 +778,7 @@ jobs:
             if (type === 'direct') {
               const outPath = path.join(dir, `video_${timestamp}_${path.basename(new URL(url).pathname) || 'video.mp4'}`);
               try {
-                execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
+                execSync(`curl --socks5 127.0.0.1:10808 -L -e "${referer}" -A "Mozilla/5.0" -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
                 return { ok: true, path: outPath };
               } catch(e) {
                 log('دانلود مستقیم شکست، تلاش با yt-dlp...');
@@ -1159,6 +1159,7 @@ jobs:
               await sendMessage(chatId, `📥 دانلود ویدیوی شماره ${num} ...`);
               const res = await downloadVideo(sel.src, sel.type, state.pageUrlAtVideo, sel.platform, state.pageUrlAtVideo);
               if (res.ok) {
+                // بررسی و تبدیل کدک
                 const compatiblePath = await ensureCompatibleVideo(res.path);
                 if (!compatiblePath) {
                   await sendMessage(chatId, '❌ تبدیل ویدیو به فرمت سازگار ممکن نشد.');
@@ -1169,6 +1170,7 @@ jobs:
                 const baseName = path.basename(compatiblePath, path.extname(compatiblePath));
                 const sent = await splitAndSendVideo(chatId, compatiblePath, baseName, keypad);
                 if (!sent) await sendMessage(chatId, '❌ ارسال ویدیو ناموفق.');
+                // پاکسازی فایل اصلی و احتمالاً فایل تبدیل‌شده
                 try { fs.unlinkSync(res.path); } catch(e) {}
                 if (compatiblePath !== res.path) {
                   try { fs.unlinkSync(compatiblePath); } catch(e) {}
@@ -1349,6 +1351,7 @@ jobs:
 
               if (OWNER) await updateScreenshot(page, OWNER);
 
+              // پاکسازی دوره‌ای هر ۳۰ دقیقه
               const cleanupInterval = setInterval(() => {
                 log('🧹 پاکسازی خودکار فایل‌های موقت...');
                 execSync('rm -rf /tmp/downloaded_* /tmp/video_chunks_* /tmp/xray_*.json /tmp/shot_* /tmp/sel_* /tmp/vid_* /tmp/img_* /tmp/scroll_* /tmp/fullshot_* /tmp/page_* 2>/dev/null');
@@ -1399,6 +1402,7 @@ jobs:
                         await sendMessage(chatId, '⚠️ خطا. حالت‌ها ریست شد.');
                         try { await updateScreenshot(page, chatId); } catch(e) {}
                       }
+                      // به‌روزرسانی page بعد از هر عملیات
                       page = browserManager.page;
                     }
                     if (upRes.data?.next_offset_id) offset = upRes.data.next_offset_id;
