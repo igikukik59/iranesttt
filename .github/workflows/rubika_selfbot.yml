@@ -1,15 +1,14 @@
-name: 🧪 آپلود مقاوم ۱۰۰MB (ضد ۵۰۳)
+name: 🔄 آپلود ۱۰۰MB با تلاش مجدد کلی (ضد ۵۰۳)
 
 on:
   workflow_dispatch:
 
 jobs:
-  robust-upload:
+  robust-whole-retry:
     runs-on: ubuntu-latest
     env:
       SESSION_B64: ${{ secrets.SESSION_DATA }}
       SESSION_NAME: my_account
-
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,67 +21,51 @@ jobs:
       - name: 🔐 بازیابی سشن
         run: echo "$SESSION_B64" | base64 -d > $SESSION_NAME.rp
 
-      - name: 🐍 ارسال با پارامترهای مقاوم
+      - name: 🐍 ارسال با تلاش کلی و زمان انتظار
         run: |
           python -c "
-          import asyncio, logging, sys, traceback, time
-
-          logging.basicConfig(
-              level=logging.DEBUG,
-              format='%(asctime)s.%(msecs)03d [%(name)s] %(levelname)s: %(message)s',
-              datefmt='%Y-%m-%d %H:%M:%S',
-              stream=sys.stdout
-          )
-          logging.getLogger('aiohttp').setLevel(logging.WARNING)  # شلوغ نشود
-          logging.getLogger('rubpy').setLevel(logging.DEBUG)
+          import asyncio, sys, time, traceback
 
           from rubpy import Client
 
-          class ProgressTracker:
-              def __init__(self, total):
-                  self.total = total
-                  self.last = 0
-                  self.start = time.time()
-              def __call__(self, current, total):
-                  now = time.time()
-                  if now - self.last > 2 or current == total:  # هر ۲ ثانیه یکبار
-                      pct = (current / total) * 100 if total else 0
-                      elapsed = now - self.start
-                      speed = current / elapsed if elapsed > 0 else 0
-                      print(f'[PROGRESS] {current:,}/{total:,} bytes ({pct:.1f}%) | سرعت: {speed/1024/1024:.2f} MB/s')
-                      self.last = now
+          MAX_ATTEMPTS = 5
+          RETRY_DELAY = 30  # ثانیه بین تلاش‌ها
+
+          async def progress_cb(current, total):
+              pct = (current / total) * 100 if total else 0
+              print(f'[PROGRESS] {current:,}/{total:,} bytes ({pct:.1f}%)')
 
           async def main():
-              try:
-                  async with Client(name='$SESSION_NAME', timeout=1200) as app:
-                      print('✅ ورود انجام شد.')
-                      file_name = 'test_100mb.bin'
-                      with open(file_name, 'wb') as f:
-                          f.write(b'\0' * 100 * 1024 * 1024)
-                      print(f'📁 فایل ۱۰۰MB ساخته شد.')
+              async with Client(name='$SESSION_NAME', timeout=1200) as app:
+                  print('✅ ورود انجام شد.')
+                  file_name = 'test_100mb.bin'
+                  with open(file_name, 'wb') as f:
+                      f.write(b'\0' * 100 * 1024 * 1024)
+                  print('📁 فایل ۱۰۰MB آماده شد.')
 
-                      tracker = ProgressTracker(100 * 1024 * 1024)
-
-                      # تنظیمات مقاوم: chunk 512KB، حداکثر ۱۰ بار تکرار، تاخیر بین تکرار ۵ ثانیه
-                      print('⏳ شروع ارسال با chunk_size=512KB, max_retries=10, retry_delay=5s')
-                      result = await app.send_document(
-                          object_guid='me',
-                          document=file_name,
-                          caption='✅ تست مقاوم ۱۰۰MB (ضد ۵۰۳)',
-                          progress=tracker,
-                          chunk_size=512 * 1024,
-                          max_retries=10,
-                          retry_delay=5
-                      )
-                      print('🎉 فایل با موفقیت ارسال شد!')
-                      print('پاسخ سرور:', result)
-
-              except Exception as e:
-                  print('='*50)
-                  print('❌ خطای نهایی:')
-                  traceback.print_exc()
-                  print('='*50)
-                  sys.exit(1)
+                  for attempt in range(1, MAX_ATTEMPTS+1):
+                      try:
+                          print(f'⏳ تلاش {attempt}/{MAX_ATTEMPTS} ...')
+                          start = time.time()
+                          result = await app.send_document(
+                              object_guid='me',
+                              document=file_name,
+                              caption=f'✅ تست مقاوم ۱۰۰MB - تلاش {attempt}',
+                              progress=progress_cb
+                          )
+                          elapsed = time.time() - start
+                          print(f'🎉 ارسال موفق در تلاش {attempt}! زمان: {elapsed:.1f}s')
+                          print('پاسخ:', result)
+                          return  # موفقیت‌آمیز -> خارج شو
+                      except Exception as e:
+                          print(f'❌ تلاش {attempt} شکست خورد:')
+                          traceback.print_exc()
+                          if attempt < MAX_ATTEMPTS:
+                              print(f'⏱️ صبر {RETRY_DELAY} ثانیه قبل از تلاش بعدی...')
+                              await asyncio.sleep(RETRY_DELAY)
+                          else:
+                              print('🛑 تمام تلاش‌ها ناموفق بود.')
+                              sys.exit(1)
 
           asyncio.run(main())
           "
