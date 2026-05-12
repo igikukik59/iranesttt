@@ -1,15 +1,18 @@
-name: Connect to Rubika via Session
+name: ✅ اتصال به روبیکا (ورکفلو نهایی)
 
-# فقط به‌صورت دستی اجرا می‌شه
 on:
   workflow_dispatch:
 
 jobs:
   connect:
     runs-on: ubuntu-latest
+    env:
+      SESSION_B64: ${{ secrets.RUBIKA_SESSION }}
+      SESSION_NAME: rubika_session
+      SESSION_FILE: rubika_session.rp
 
     steps:
-      - name: ⬇️ Checkout repository
+      - name: ⬇️ Checkout
         uses: actions/checkout@v4
 
       - name: 🐍 Setup Python
@@ -17,37 +20,34 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 📦 Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install rubpy python-dotenv
+      - name: 📦 Install rubpy
+        run: pip install rubpy==7.3.5
 
-      - name: 🔐 Decode session from secret
-        env:
-          SESSION_B64: ${{ secrets.RUBIKA_SESSION }}   # نام Secret که ست کردی
-        run: |
-          echo "$SESSION_B64" | base64 -d > rubika_session.session
-          echo "✅ Session file restored."
+      - name: 🔐 Decode session file
+        run: echo "$SESSION_B64" | base64 -d > $SESSION_FILE
+
+      - name: 📋 Check file
+        run: ls -la $SESSION_FILE
 
       - name: 🚀 Connect to Rubika
         run: |
-          python << 'PYEOF'
+          python -c "
           import asyncio
-          import sys
           from rubpy import Client
 
-          # این شرط برای ویندوز هست ولی تو لینوکس هم ضرری نداره
-          if sys.platform == "win32":
-              asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+          async def main():
+              try:
+                  async with Client(name='$SESSION_NAME') as app:
+                      me = await app.get_me()
+                      print('✅ اتصال موفقیت‌آمیز بود!')
+                      print('👤 شناسه کاربری:', me.user.user_guid)
+                      print('📛 نام:', me.user.first_name, me.user.last_name or '')
+                      # ارسال پیام تست به خودت
+                      await app.send_message('me', '✅ GitHub Actions connected successfully!')
+                      print('📤 پیام تست فرستاده شد.')
+              except Exception as e:
+                  print('❌ اتصال ناموفق:', e)
+                  exit(1)
 
-          client = Client(name='rubika_session')   # rubika_session.session رو می‌خونه
-          try:
-              client.start()
-              print('✅ Connected to Rubika successfully!')
-              # فرستادن یک پیام آزمایشی به پیام‌های نشان‌شده (خودت)
-              client.send_message('me', '✅ GitHub Actions connected successfully!')
-              print('📤 Test message sent to Saved Messages.')
-          finally:
-              client.disconnect()
-              print('🔌 Disconnected.')
-          PYEOF
+          asyncio.run(main())
+          "
