@@ -1,10 +1,10 @@
-name: ✅ اتصال به روبیکا (ورکفلو نهایی)
+name: 📤 Upload sample Python file to Saved Messages
 
 on:
   workflow_dispatch:
 
 jobs:
-  connect:
+  upload:
     runs-on: ubuntu-latest
     env:
       SESSION_B64: ${{ secrets.RUBIKA_SESSION }}
@@ -12,7 +12,7 @@ jobs:
       SESSION_FILE: rubika_session.rp
 
     steps:
-      - name: ⬇️ Checkout
+      - name: ⬇️ Checkout repository (optional)
         uses: actions/checkout@v4
 
       - name: 🐍 Setup Python
@@ -26,28 +26,40 @@ jobs:
       - name: 🔐 Decode session file
         run: echo "$SESSION_B64" | base64 -d > $SESSION_FILE
 
-      - name: 📋 Check file
+      - name: 📋 Check session file
         run: ls -la $SESSION_FILE
 
-      - name: 🚀 Connect to Rubika
+      - name: 🚀 Generate dummy file & upload to Saved Messages
         run: |
-          python -c "
+          python << 'PYEOF'
           import asyncio
+          import os
+          from pathlib import Path
           from rubpy import Client
 
           async def main():
+              # 1. ساخت یک فایل پایتون ساده
+              content = '''
+          print("🌍 Hello from GitHub Actions!")
+          print("This file was uploaded automatically.")
+          '''
+              file_path = Path("sample_script.py")
+              file_path.write_text(content.strip(), encoding="utf-8")
+              print(f"📄 Created file: {file_path} ({file_path.stat().st_size} bytes)")
+
+              # 2. آپلود فایل به "Saved Messages"
               try:
-                  async with Client(name='$SESSION_NAME') as app:
-                      me = await app.get_me()
-                      print('✅ اتصال موفقیت‌آمیز بود!')
-                      print('👤 شناسه کاربری:', me.user.user_guid)
-                      print('📛 نام:', me.user.first_name, me.user.last_name or '')
-                      # ارسال پیام تست به خودت
-                      await app.send_message('me', '✅ GitHub Actions connected successfully!')
-                      print('📤 پیام تست فرستاده شد.')
+                  async with Client(name=os.environ["SESSION_NAME"]) as app:
+                      # send_document به "me" یعنی خودت
+                      await app.send_document(
+                          "me",
+                          str(file_path),
+                          caption="📎 Sample Python file from GitHub Actions"
+                      )
+                      print("✅ File uploaded to Saved Messages successfully!")
               except Exception as e:
-                  print('❌ اتصال ناموفق:', e)
+                  print(f"❌ Upload failed: {e}")
                   exit(1)
 
           asyncio.run(main())
-          "
+          PYEOF
