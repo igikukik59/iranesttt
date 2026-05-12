@@ -1,183 +1,29 @@
-name: 🚀 آپلود با پروکسی (دور زدن ۵۰MB)
+name: Upload to Rubika Saved Messages
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # فقط وقتی دستی اجراش کنی
 
 jobs:
-  proxy-upload:
+  upload:
     runs-on: ubuntu-latest
-    env:
-      SESSION_B64: ${{ secrets.SESSION_DATA }}
-
     steps:
-      - name: 📥 دریافت کد
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🐍 نصب پایتون
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
 
-      - name: 📦 نصب پیش‌نیازهای سیستم
+      - name: Install dependencies
+        run: pip install rubpy python-dotenv
+
+      - name: Restore Rubika session from secret
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y proxychains4 curl unzip
+          echo "${{ secrets.RUBIKA_SESSION_BASE64 }}" | base64 -d > rubika_session
+        shell: bash
 
-      - name: 📚 نصب کتابخانه‌های پایتون
-        run: pip install rubpy==7.3.5
-
-      - name: ⬇️ دانلود و آماده‌سازی Xray
-        run: |
-          wget -q https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip -O /tmp/xray.zip
-          unzip -q /tmp/xray.zip -d xray
-          chmod +x xray/xray
-
-      - name: 🔐 بازیابی فایل سشن
-        run: echo "$SESSION_B64" | base64 -d > my_account.rp
-
-      - name: 🧪 تست پروکسی‌ها و آپلود
-        run: |
-          PROXIES=$(grep -E '^(vless|trojan)://' config.txt)
-          if [ -z "$PROXIES" ]; then
-            echo "❌ هیچ پروکسی در config.txt پیدا نشد."
-            exit 1
-          fi
-
-          for URI in $PROXIES; do
-            echo -e "\n🔹 آزمایش پروکسی: ${URI:0:80}..."
-            
-            # تولید کانفیگ Xray و ذخیره در فایل موقت
-            python3 -c "
-import json, sys, urllib.parse
-uri = '${URI}'
-u = urllib.parse.urlparse(uri)
-params = dict(urllib.parse.parse_qsl(u.query))
-host = u.hostname
-port = u.port or (443 if u.scheme in ('vless','trojan') else 80)
-
-if u.scheme == 'vless':
-    out = {
-        'protocol': 'vless',
-        'settings': {
-            'vnext': [{
-                'address': host, 'port': port,
-                'users': [{'id': u.username, 'encryption': params.get('encryption','none'), 'flow': ''}]
-            }]
-        },
-        'streamSettings': {
-            'network': params.get('type','tcp'),
-            'security': params.get('security','none')
-        }
-    }
-elif u.scheme == 'trojan':
-    out = {
-        'protocol': 'trojan',
-        'settings': {
-            'servers': [{'address': host, 'port': port, 'password': u.username}]
-        },
-        'streamSettings': {
-            'network': params.get('type','tcp'),
-            'security': params.get('security','none')
-        }
-    }
-else:
-    sys.exit(1)
-
-# تنظیمات انتقال
-net = out['streamSettings']['network']
-if net == 'ws':
-    out['streamSettings']['wsSettings'] = {
-        'path': params.get('path', '/'),
-        'headers': {'Host': params.get('host', host)}
-    }
-elif net == 'grpc':
-    out['streamSettings']['grpcSettings'] = {'serviceName': params.get('serviceName', '')}
-
-sec = out['streamSettings']['security']
-if sec in ('tls','reality'):
-    tls = {'serverName': params.get('sni', host)}
-    if sec == 'reality':
-        tls['fingerprint'] = params.get('fp', 'chrome')
-        tls['publicKey'] = params.get('pbk', '')
-        tls['shortId'] = params.get('sid', '')
-        tls['spiderX'] = ''
-    if params.get('allowInsecure') == '1':
-        tls['allowInsecure'] = True
-    if params.get('alpn'):
-        tls['alpn'] = params['alpn'].split(',')
-    out['streamSettings']['tlsSettings'] = tls
-else:
-    out['streamSettings']['security'] = 'none'
-
-config = {
-    'inbounds': [{'port': 10808, 'protocol': 'socks', 'settings': {'auth': 'noauth', 'udp': True}}],
-    'outbounds': [out]
-}
-
-with open('/tmp/xray_config.json', 'w') as f:
-    json.dump(config, f)
-"
-            # اجرای Xray در پس‌زمینه
-            ./xray/xray run -config /tmp/xray_config.json > /tmp/xray.log 2>&1 &
-            XRAY_PID=$!
-            sleep 2
-
-            # تست سریع با curl
-            echo "  🔍 تست اتصال SOCKS5..."
-            HTTP_CODE=$(curl --socks5 127.0.0.1:10808 -o /dev/null -s -w '%{http_code}' --max-time 5 http://www.gstatic.com/generate_204)
-            if [ "$HTTP_CODE" = "204" ]; then
-              echo "  ✅ پروکسی سالم است. شروع آپلود..."
-
-              # پیکربندی proxychains
-              cat > /tmp/proxychains.conf << EOF
-strict_chain
-quiet_mode
-tcp_read_time_out 15000
-tcp_connect_time_out 8000
-[ProxyList]
-socks5 127.0.0.1 10808
-EOF
-
-              # اجرای اسکریپت پایتون آپلود از طریق proxychains
-              proxychains4 -f /tmp/proxychains.conf python3 -c "
-import asyncio, logging, sys, time, traceback
-from rubpy import Client
-
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s')
-log = logging.getLogger('upload')
-
-async def main():
-    try:
-        async with Client(name='my_account', timeout=600) as app:
-            log.info('✅ ورود موفق')
-            # ساخت فایل ۱۰۰MB
-            file_path = '/tmp/test_100mb.bin'
-            with open(file_path, 'wb') as f:
-                f.write(b'\0' * 100 * 1024 * 1024)
-            log.info('📁 فایل ۱۰۰MB ساخته شد. آپلود شروع می‌شود...')
-            start = time.time()
-            await app.send_document('me', file_path, caption='🎉 تست ۱۰۰MB با پروکسی موفقیت‌آمیز!')
-            log.info(f'🎉 آپلود تمام شد. زمان: {time.time()-start:.1f}s')
-    except Exception:
-        traceback.print_exc()
-        sys.exit(1)
-
-asyncio.run(main())
-"
-              UPLOAD_EXIT=$?
-              kill $XRAY_PID 2>/dev/null
-
-              if [ $UPLOAD_EXIT -eq 0 ]; then
-                echo "  ✅ آپلود با موفقیت انجام شد!"
-                exit 0
-              else
-                echo "  ❌ آپلود شکست خورد (کد $UPLOAD_EXIT). امتحان پروکسی بعدی..."
-              fi
-            else
-              echo "  ❌ پروکسی خراب (HTTP $HTTP_CODE). رد می‌شود."
-              kill $XRAY_PID 2>/dev/null
-            fi
-          done
-
-          echo "⛔ همه پروکسی‌ها شکست خوردند."
-          exit 1
+      - name: Run upload script
+        env:
+          RUBIKA_SESSION: rubika_session
+        run: python upload_action.py
