@@ -1,10 +1,10 @@
-name: 📤 Upload sample Python file to Saved Messages
+name: 📦 Upload 10MB file & measure speed
 
 on:
   workflow_dispatch:
 
 jobs:
-  upload:
+  upload-large:
     runs-on: ubuntu-latest
     env:
       SESSION_B64: ${{ secrets.RUBIKA_SESSION }}
@@ -12,7 +12,7 @@ jobs:
       SESSION_FILE: rubika_session.rp
 
     steps:
-      - name: ⬇️ Checkout repository (optional)
+      - name: ⬇️ Checkout (optional)
         uses: actions/checkout@v4
 
       - name: 🐍 Setup Python
@@ -23,40 +23,47 @@ jobs:
       - name: 📦 Install rubpy
         run: pip install rubpy==7.3.5
 
-      - name: 🔐 Decode session file
+      - name: 🔐 Decode session
         run: echo "$SESSION_B64" | base64 -d > $SESSION_FILE
 
       - name: 📋 Check session file
         run: ls -la $SESSION_FILE
 
-      - name: 🚀 Generate dummy file & upload to Saved Messages
+      - name: 🚀 Generate large file & upload with timing
         run: |
           python << 'PYEOF'
           import asyncio
           import os
+          import time
           from pathlib import Path
           from rubpy import Client
 
           async def main():
-              # 1. ساخت یک فایل پایتون ساده
-              content = '''
-          print("🌍 Hello from GitHub Actions!")
-          print("This file was uploaded automatically.")
-          '''
-              file_path = Path("sample_script.py")
-              file_path.write_text(content.strip(), encoding="utf-8")
-              print(f"📄 Created file: {file_path} ({file_path.stat().st_size} bytes)")
+              # 1. ساخت فایل 10 مگابایتی (داده تصادفی)
+              file_path = Path("large_10mb.bin")
+              target_size = 10 * 1024 * 1024  # 10 MB
+              print(f"📄 Creating random file of size {target_size} bytes...")
+              with open(file_path, "wb") as f:
+                  f.write(os.urandom(target_size))
+              size_mb = file_path.stat().st_size / (1024 * 1024)
+              print(f"📁 File created: {file_path} ({size_mb:.2f} MB)")
 
-              # 2. آپلود فایل به "Saved Messages"
+              # 2. اتصال و آپلود با زمان‌سنجی
               try:
                   async with Client(name=os.environ["SESSION_NAME"]) as app:
-                      # send_document به "me" یعنی خودت
+                      print("⏳ Uploading to Saved Messages...")
+                      start = time.time()
                       await app.send_document(
                           "me",
                           str(file_path),
-                          caption="📎 Sample Python file from GitHub Actions"
+                          caption="📦 Large 10MB file — speed test"
                       )
-                      print("✅ File uploaded to Saved Messages successfully!")
+                      end = time.time()
+                      duration = end - start
+                      speed = (target_size / (1024 * 1024)) / duration  # MB/s
+                      print(f"✅ Upload completed!")
+                      print(f"⏱️ Duration: {duration:.2f} seconds")
+                      print(f"🚀 Average speed: {speed:.2f} MB/s")
               except Exception as e:
                   print(f"❌ Upload failed: {e}")
                   exit(1)
