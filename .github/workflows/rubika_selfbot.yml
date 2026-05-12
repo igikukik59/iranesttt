@@ -1,5 +1,6 @@
 name: Connect to Rubika via Session
 
+# فقط به‌صورت دستی اجرا می‌شه
 on:
   workflow_dispatch:
 
@@ -23,18 +24,19 @@ jobs:
 
       - name: 🔐 Decode session from secret
         env:
-          SESSION_B64: ${{ secrets.RUBIKA_SESSION }}
+          SESSION_B64: ${{ secrets.RUBIKA_SESSION }}   # نام Secret که ست کردی
         run: |
-          # مینویسه توی rubika_session.session (همان فرمت SQLite)
           echo "$SESSION_B64" | base64 -d > rubika_session.session
           echo "✅ Session file restored."
 
       - name: 🚀 Connect to Rubika
         run: |
           python << 'PYEOF'
-          import asyncio, sys
+          import asyncio
+          import sys
           from rubpy import Client
 
+          # این شرط برای ویندوز هست ولی تو لینوکس هم ضرری نداره
           if sys.platform == "win32":
               asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
@@ -42,6 +44,7 @@ jobs:
           try:
               client.start()
               print('✅ Connected to Rubika successfully!')
+              # فرستادن یک پیام آزمایشی به پیام‌های نشان‌شده (خودت)
               client.send_message('me', '✅ GitHub Actions connected successfully!')
               print('📤 Test message sent to Saved Messages.')
           finally:
