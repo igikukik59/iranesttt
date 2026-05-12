@@ -1,10 +1,10 @@
-name: 🔬 دیباگ کامل آپلود ۱۰۰MB (لاگ دقیق)
+name: 🧪 آپلود مقاوم ۱۰۰MB (ضد ۵۰۳)
 
 on:
   workflow_dispatch:
 
 jobs:
-  debug-upload:
+  robust-upload:
     runs-on: ubuntu-latest
     env:
       SESSION_B64: ${{ secrets.SESSION_DATA }}
@@ -22,55 +22,64 @@ jobs:
       - name: 🔐 بازیابی سشن
         run: echo "$SESSION_B64" | base64 -d > $SESSION_NAME.rp
 
-      - name: 🐍 اجرای اسکریپت با لاگ کامل
+      - name: 🐍 ارسال با پارامترهای مقاوم
         run: |
           python -c "
           import asyncio, logging, sys, traceback, time
 
-          # فعال‌سازی لاگ DEBUG برای کتابخانه‌های مربوطه
           logging.basicConfig(
               level=logging.DEBUG,
               format='%(asctime)s.%(msecs)03d [%(name)s] %(levelname)s: %(message)s',
               datefmt='%Y-%m-%d %H:%M:%S',
               stream=sys.stdout
           )
-          # لاگ دقیق‌تر aiohttp
-          logging.getLogger('aiohttp').setLevel(logging.DEBUG)
-          # لاگ خود rubpy (اگر وجود داشته باشد)
+          logging.getLogger('aiohttp').setLevel(logging.WARNING)  # شلوغ نشود
           logging.getLogger('rubpy').setLevel(logging.DEBUG)
 
           from rubpy import Client
 
-          async def progress_callback(current, total):
-              pct = (current / total) * 100 if total else 0
-              print(f'[PROGRESS] {current}/{total} bytes ({pct:.1f}%)')
+          class ProgressTracker:
+              def __init__(self, total):
+                  self.total = total
+                  self.last = 0
+                  self.start = time.time()
+              def __call__(self, current, total):
+                  now = time.time()
+                  if now - self.last > 2 or current == total:  # هر ۲ ثانیه یکبار
+                      pct = (current / total) * 100 if total else 0
+                      elapsed = now - self.start
+                      speed = current / elapsed if elapsed > 0 else 0
+                      print(f'[PROGRESS] {current:,}/{total:,} bytes ({pct:.1f}%) | سرعت: {speed/1024/1024:.2f} MB/s')
+                      self.last = now
 
           async def main():
               try:
-                  # تایم‌اوت بالا (۱۰ دقیقه) و لاگ کامل
-                  async with Client(name='$SESSION_NAME', timeout=600) as app:
-                      print('✅ ورود انجام شد. ساختن فایل ۱۰۰MB...')
+                  async with Client(name='$SESSION_NAME', timeout=1200) as app:
+                      print('✅ ورود انجام شد.')
                       file_name = 'test_100mb.bin'
                       with open(file_name, 'wb') as f:
                           f.write(b'\0' * 100 * 1024 * 1024)
-                      print(f'📁 فایل ساخته شد: {file_name}')
+                      print(f'📁 فایل ۱۰۰MB ساخته شد.')
 
-                      start = time.time()
-                      print('⏳ شروع send_document با callback پیشرفت...')
-                      # نکته: پارامتر progress در نسخه 7.3.5 پشتیبانی می‌شود
+                      tracker = ProgressTracker(100 * 1024 * 1024)
+
+                      # تنظیمات مقاوم: chunk 512KB، حداکثر ۱۰ بار تکرار، تاخیر بین تکرار ۵ ثانیه
+                      print('⏳ شروع ارسال با chunk_size=512KB, max_retries=10, retry_delay=5s')
                       result = await app.send_document(
                           object_guid='me',
                           document=file_name,
-                          caption='🔬 تست ۱۰۰MB با لاگ کامل',
-                          progress=progress_callback
+                          caption='✅ تست مقاوم ۱۰۰MB (ضد ۵۰۳)',
+                          progress=tracker,
+                          chunk_size=512 * 1024,
+                          max_retries=10,
+                          retry_delay=5
                       )
-                      elapsed = time.time() - start
-                      print(f'✅ فایل با موفقیت ارسال شد! زمان: {elapsed:.1f}s')
+                      print('🎉 فایل با موفقیت ارسال شد!')
                       print('پاسخ سرور:', result)
 
               except Exception as e:
                   print('='*50)
-                  print('❌ خطا رخ داد:')
+                  print('❌ خطای نهایی:')
                   traceback.print_exc()
                   print('='*50)
                   sys.exit(1)
