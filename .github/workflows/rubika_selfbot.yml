@@ -1,29 +1,186 @@
-name: Upload to Rubika Saved Messages
+name: 🔐 Rubika Upload Bot (سشن داخل خود ربات)
 
 on:
-  workflow_dispatch:   # فقط دستی اجرا می‌شه
+  workflow_dispatch:   # فقط وقتی خودت دستی ران کنی
 
 jobs:
-  upload:
+  bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 330
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
+      - name: 🐍 نصب Python و کتابخونه‌ها
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install rubpy python-dotenv
-
-      - name: Restore Rubika session from secret
-        run: |
-          printf '%s' "${{ secrets.SESSION_DATA }}" | base64 -d > rubika_session.session
-        shell: bash
-
-      - name: Run upload script
+      - name: 📦 نصب نیازمندی‌ها
+        run: pip install rubpy requests python-dotenv
+      - name: 🤖 اجرای ربات
         env:
-          RUBIKA_SESSION_FILE: rubika_session.session
-        run: python upload_action.py
+          RUBIKA_BOT_TOKEN: ${{ secrets.RUBIKA_BOT_TOKEN }}
+        run: |
+          cat > bot.py << 'PYEOF'
+          import os, sys, asyncio, json, time, requests, random, string
+          from rubpy import Client as RubikaClient
+
+          # Windows fix (harmless on Linux)
+          if sys.platform == "win32":
+              asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+          BOT_TOKEN = os.environ['RUBIKA_BOT_TOKEN']
+          BASE = f"https://botapi.rubika.ir/v3/{BOT_TOKEN}"
+          SESSION_NAME = "rubika_user_session"
+
+          state = "AWAIT_PHONE"
+          phone_number = None
+          active_chat_id = None
+
+          def api(method, body=None, retries=3):
+              if body is None:
+                  body = {}
+              url = f"{BASE}/{method}"
+              for i in range(retries):
+                  try:
+                      resp = requests.post(url, json=body, timeout=30)
+                      data = resp.json()
+                      return data
+                  except Exception as e:
+                      if i == retries - 1:
+                          raise
+                      time.sleep(2)
+
+          def send_message(chat_id, text):
+              return api("sendMessage", {"chat_id": chat_id, "text": text})
+
+          def get_file(file_id):
+              return api("getFile", {"file_id": file_id})
+
+          def download_file(file_data, target_path):
+              url = file_data.get("download_url")
+              if not url:
+                  raise ValueError("No download_url")
+              resp = requests.get(url, timeout=120)
+              resp.raise_for_status()
+              with open(target_path, 'wb') as f:
+                  f.write(resp.content)
+
+          # --- Login via rubpy (async wrappers) ---
+          async def _do_send_code(phone):
+              client = RubikaClient(name=SESSION_NAME)
+              try:
+                  await client.connect()
+                  await client.send_code(phone)
+              finally:
+                  await client.disconnect()
+
+          async def _do_verify_code(phone, code):
+              client = RubikaClient(name=SESSION_NAME)
+              try:
+                  await client.connect()
+                  await client.sign_in(phone, code)
+              finally:
+                  await client.disconnect()
+
+          async def _do_upload(file_path, caption=""):
+              client = RubikaClient(name=SESSION_NAME)
+              try:
+                  await client.connect()
+                  await client.send_document("me", file_path, caption=caption)
+              finally:
+                  await client.disconnect()
+
+          def login_phase1(phone):
+              asyncio.run(_do_send_code(phone))
+
+          def login_phase2(phone, code):
+              asyncio.run(_do_verify_code(phone, code))
+
+          def upload_to_saved(file_path, caption=""):
+              asyncio.run(_do_upload(file_path, caption))
+
+          # --- Main polling loop ---
+          print("✅ Rubika Upload Bot start shod. Montazer peygham...")
+          offset_id = None
+          while True:
+              try:
+                  params = {"limit": 10}
+                  if offset_id is not None:
+                      params["offset_id"] = offset_id
+                  updates = api("getUpdates", params)
+
+                  items = updates.get("data", {}).get("updates", [])
+                  next_offset = updates.get("data", {}).get("next_offset_id")
+                  if next_offset:
+                      offset_id = next_offset
+
+                  if not items:
+                      time.sleep(3)
+                      continue
+
+                  for upd in items:
+                      if upd.get("type") != "NewMessage":
+                          continue
+                      msg = upd["new_message"]
+                      cid = msg.get("chat_id")
+                      text = (msg.get("text") or "").strip()
+                      document = msg.get("document")
+                      # فقط کاربر فعال مجاز به ادامه است
+                      if active_chat_id is not None and cid != active_chat_id:
+                          continue
+
+                      if state == "AWAIT_PHONE":
+                          if text and text.startswith("+"):
+                              phone_number = text
+                              active_chat_id = cid
+                              send_message(cid, "📱 Shomare daryaft shod. Dar hale ersal code taeed...")
+                              try:
+                                  login_phase1(phone_number)
+                                  send_message(cid, "✅ Code taeed be shomare shoma ersal shod. Lotfan code 5 raghami ra vared konid:")
+                                  state = "AWAIT_CODE"
+                              except Exception as e:
+                                  send_message(cid, f"❌ Khata dar ersal code: {e}")
+                          else:
+                              send_message(cid, "👋 Lotfan shomare khod ra ba format +989xxxxxxxxx ersal konid.")
+
+                      elif state == "AWAIT_CODE":
+                          if text and len(text) >= 4 and text.isdigit():
+                              code = text
+                              try:
+                                  login_phase2(phone_number, code)
+                                  send_message(cid, "✅ Vorud movafaghiatamiz! Hala ye file (aks, video, sand) befrest ta dar Saved Messages upload beshe.")
+                                  state = "AWAIT_FILE"
+                              except Exception as e:
+                                  send_message(cid, f"❌ Code eshtebah ast: {e}. Lotfan dobare emtehan konid.")
+                          else:
+                              send_message(cid, "Lotfan code 5 raghami ra befrestid.")
+
+                      elif state == "AWAIT_FILE":
+                          if document:
+                              file_info = document
+                              file_id = file_info.get("file_id")
+                              if not file_id:
+                                  send_message(cid, "❌ File mojod nist.")
+                                  continue
+                              send_message(cid, "📥 Dar hale daryaft file...")
+                              temp_path = None
+                              try:
+                                  res = get_file(file_id)
+                                  file_data = res.get("data", {})
+                                  file_name = file_info.get("file_name", "file")
+                                  ext = os.path.splitext(file_name)[1] if '.' in file_name else ''
+                                  temp_path = f"/tmp/upload_{random.randint(1000,9999)}{ext}"
+                                  download_file(file_data, temp_path)
+                                  send_message(cid, "📤 Dar hale upload be Saved Messages...")
+                                  upload_to_saved(temp_path, caption="📎 Uploaded by Rubika Bot")
+                                  send_message(cid, "✅ File ba movafaghiat dar Saved Messages upload shod.\nMitoni file dg ham befresti.")
+                              except Exception as e:
+                                  send_message(cid, f"❌ Khata: {e}")
+                              finally:
+                                  if temp_path and os.path.exists(temp_path):
+                                      os.unlink(temp_path)
+                          else:
+                              send_message(cid, "📎 Lotfan ye file (sand, aks, video) befrestid.")
+              except Exception as e:
+                  print(f"❌ Polling error: {e}")
+                  time.sleep(5)
+          PYEOF
+          python bot.py
