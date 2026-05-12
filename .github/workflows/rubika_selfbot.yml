@@ -1,15 +1,14 @@
-name: 🧪 تست اتصال سشن روبیکا
+name: 📤 آپلود فایل ۱۰۰ مگابایتی به Saved Messages
 
 on:
   workflow_dispatch:
 
 jobs:
-  test-connection:
+  upload-large-file:
     runs-on: ubuntu-latest
     env:
       SESSION_B64: ${{ secrets.SESSION_DATA }}
       SESSION_NAME: my_account
-      SESSION_FILE: my_account.rp
 
     steps:
       - uses: actions/checkout@v4
@@ -17,31 +16,36 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: 📦 نصب rubpy (همان نسخهٔ لوکال)
+      - name: 📦 نصب کتابخانه (همان نسخه‌ای که روی لوکال داری)
         run: pip install rubpy==7.3.5
 
-      - name: 🔐 بازیابی فایل سشن از Secret
-        run: echo "$SESSION_B64" | base64 -d > $SESSION_FILE
+      - name: 🔐 بازیابی فایل سشن
+        run: echo "$SESSION_B64" | base64 -d > $SESSION_NAME.rp
 
-      - name: 📋 بررسی وجود فایل سشن
-        run: ls -la $SESSION_FILE
-
-      - name: 🔌 تست اتصال به روبیکا
+      - name: 📁 ساخت فایل ۱۰۰ مگابایتی و ارسال به خودم
         run: |
           python -c "
           import asyncio
           from rubpy import Client
 
           async def main():
-              try:
-                  async with Client(name='$SESSION_NAME') as app:
-                      me = await app.get_me()
-                      print('✅ اتصال موفقیت‌آمیز بود!')
-                      print('شناسه کاربری:', me.user.user_guid)
-                      print('نام:', me.user.first_name, me.user.last_name or '')
-              except Exception as e:
-                  print('❌ اتصال ناموفق:', e)
-                  exit(1)
+              async with Client(name='$SESSION_NAME') as app:
+                  # ساخت یک فایل ۱۰۰ مگابایتی پر از صفر
+                  file_name = 'test_100mb.bin'
+                  with open(file_name, 'wb') as f:
+                      f.write(b'\0' * 100 * 1024 * 1024)  # دقیقاً 100MB
+
+                  print('⏳ در حال آپلود ۱۰۰ مگابایت...')
+                  # ارسال به Saved Messages (شناسه 'me')
+                  result = await app.send_document(
+                      object_guid='me',
+                      document=file_name,
+                      caption='✅ تست موفقیت‌آمیز آپلود ۱۰۰ مگابایت با Self-Bot (دور زدن محدودیت ۵۰MB)'
+                  )
+                  print('🎉 فایل با موفقیت ارسال شد!')
+                  print('پاسخ سرور:', result)
 
           asyncio.run(main())
           "
+      - name: 🧹 پاکسازی (اختیاری)
+        run: rm -f test_100mb.bin $SESSION_NAME.rp
