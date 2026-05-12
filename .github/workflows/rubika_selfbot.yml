@@ -1,10 +1,10 @@
-name: 📤 آپلود فایل ۱۰۰ مگابایتی به Saved Messages
+name: 🔬 دیباگ کامل آپلود ۱۰۰MB (لاگ دقیق)
 
 on:
   workflow_dispatch:
 
 jobs:
-  upload-large-file:
+  debug-upload:
     runs-on: ubuntu-latest
     env:
       SESSION_B64: ${{ secrets.SESSION_DATA }}
@@ -16,36 +16,64 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: 📦 نصب کتابخانه (همان نسخه‌ای که روی لوکال داری)
+      - name: 📦 نصب کتابخانه
         run: pip install rubpy==7.3.5
 
-      - name: 🔐 بازیابی فایل سشن
+      - name: 🔐 بازیابی سشن
         run: echo "$SESSION_B64" | base64 -d > $SESSION_NAME.rp
 
-      - name: 📁 ساخت فایل ۱۰۰ مگابایتی و ارسال به خودم
+      - name: 🐍 اجرای اسکریپت با لاگ کامل
         run: |
           python -c "
-          import asyncio
+          import asyncio, logging, sys, traceback, time
+
+          # فعال‌سازی لاگ DEBUG برای کتابخانه‌های مربوطه
+          logging.basicConfig(
+              level=logging.DEBUG,
+              format='%(asctime)s.%(msecs)03d [%(name)s] %(levelname)s: %(message)s',
+              datefmt='%Y-%m-%d %H:%M:%S',
+              stream=sys.stdout
+          )
+          # لاگ دقیق‌تر aiohttp
+          logging.getLogger('aiohttp').setLevel(logging.DEBUG)
+          # لاگ خود rubpy (اگر وجود داشته باشد)
+          logging.getLogger('rubpy').setLevel(logging.DEBUG)
+
           from rubpy import Client
 
-          async def main():
-              async with Client(name='$SESSION_NAME') as app:
-                  # ساخت یک فایل ۱۰۰ مگابایتی پر از صفر
-                  file_name = 'test_100mb.bin'
-                  with open(file_name, 'wb') as f:
-                      f.write(b'\0' * 100 * 1024 * 1024)  # دقیقاً 100MB
+          async def progress_callback(current, total):
+              pct = (current / total) * 100 if total else 0
+              print(f'[PROGRESS] {current}/{total} bytes ({pct:.1f}%)')
 
-                  print('⏳ در حال آپلود ۱۰۰ مگابایت...')
-                  # ارسال به Saved Messages (شناسه 'me')
-                  result = await app.send_document(
-                      object_guid='me',
-                      document=file_name,
-                      caption='✅ تست موفقیت‌آمیز آپلود ۱۰۰ مگابایت با Self-Bot (دور زدن محدودیت ۵۰MB)'
-                  )
-                  print('🎉 فایل با موفقیت ارسال شد!')
-                  print('پاسخ سرور:', result)
+          async def main():
+              try:
+                  # تایم‌اوت بالا (۱۰ دقیقه) و لاگ کامل
+                  async with Client(name='$SESSION_NAME', timeout=600) as app:
+                      print('✅ ورود انجام شد. ساختن فایل ۱۰۰MB...')
+                      file_name = 'test_100mb.bin'
+                      with open(file_name, 'wb') as f:
+                          f.write(b'\0' * 100 * 1024 * 1024)
+                      print(f'📁 فایل ساخته شد: {file_name}')
+
+                      start = time.time()
+                      print('⏳ شروع send_document با callback پیشرفت...')
+                      # نکته: پارامتر progress در نسخه 7.3.5 پشتیبانی می‌شود
+                      result = await app.send_document(
+                          object_guid='me',
+                          document=file_name,
+                          caption='🔬 تست ۱۰۰MB با لاگ کامل',
+                          progress=progress_callback
+                      )
+                      elapsed = time.time() - start
+                      print(f'✅ فایل با موفقیت ارسال شد! زمان: {elapsed:.1f}s')
+                      print('پاسخ سرور:', result)
+
+              except Exception as e:
+                  print('='*50)
+                  print('❌ خطا رخ داد:')
+                  traceback.print_exc()
+                  print('='*50)
+                  sys.exit(1)
 
           asyncio.run(main())
           "
-      - name: 🧹 پاکسازی (اختیاری)
-        run: rm -f test_100mb.bin $SESSION_NAME.rp
