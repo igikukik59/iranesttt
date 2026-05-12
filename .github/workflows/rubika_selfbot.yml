@@ -212,6 +212,18 @@ jobs:
             return await api('sendMessage', { chat_id: chatId, text, ...extra });
           }
 
+          // تابع به‌روز‌رسانی کیبورد با استفاده از editChatKeypad (برای پایداری)
+          async function updateKeyboard(chatId) {
+            const keypad = buildControlKeypad();
+            const res = await api('editChatKeypad', {
+              chat_id: chatId,
+              chat_keypad_type: "New",
+              chat_keypad: keypad
+            });
+            if (res.error) err('خطا در به‌روزرسانی کیبورد:', res);
+            else log('✅ کیبورد برای', chatId, 'تنظیم شد.');
+          }
+
           // ======================== مدیریت مخازن موقت GitHub ========================
           const PAT_TOKEN = process.env.PAT_TOKEN;
           if (!PAT_TOKEN) { err('❌ PAT_TOKEN تنظیم نشده'); process.exit(1); }
@@ -413,7 +425,7 @@ jobs:
             }
           }
 
-          // ======================== کی‌پد کنترلی (دکمه جدید: لینک صفحه) ========================
+          // ======================== کی‌پد کنترلی ========================
           function buildControlKeypad() {
             return {
               rows: [
@@ -444,7 +456,7 @@ jobs:
                     { id: "SCREENSHOT", type: "Simple", button_text: "📸 اسکرین‌شات" }
                 ]},
                 { buttons: [
-                    { id: "PAGE_LINK",  type: "Simple", button_text: "🔗 لینک صفحه" }  // دکمه جدید
+                    { id: "PAGE_LINK",  type: "Simple", button_text: "🔗 لینک صفحه" }
                 ]},
                 { buttons: [
                     { id: "ENTER",       type: "Simple", button_text: "↵ Enter" },
@@ -790,7 +802,7 @@ jobs:
             });
           }
 
-          // ======================== استخراج متن ========================
+          // ======================== استخراج متن با مارک‌داون ========================
           async function extractVisibleText(page) {
             return await page.evaluate(() => {
               const walker = document.createTreeWalker(
@@ -824,7 +836,7 @@ jobs:
             });
           }
 
-          // ======================== دانلودها ========================
+          // ======================== دانلودها (چندرشته‌ای با aria2c) ========================
           async function downloadImage(url, referer) {
             const dir = '/tmp/downloaded_images';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -845,17 +857,15 @@ jobs:
             } catch(e) { err('دانلود فایل خطا:', e.message); return { ok: false }; }
           }
 
-          // ======================== دانلود ویدیو (اصلاح‌شده) ========================
           async function downloadVideo(url, type, referer, platform, pageUrl) {
             const downloadDir = `/tmp/video_dl_${Date.now()}`;
             fs.mkdirSync(downloadDir, { recursive: true });
             log(`📂 پوشه دانلود: ${downloadDir}`);
 
-            // آرگومان‌های مشترک yt-dlp
             const ytDlpArgs = [
               'yt-dlp',
               '--no-playlist',
-              '--max-downloads', '1',                // فقط یک فایل، حل مشکل چندرسانه‌ای
+              '--max-downloads', '1',
               '--merge-output-format', 'mp4',
               '--force-ipv4',
               '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -863,19 +873,13 @@ jobs:
               '--downloader', 'aria2c',
               '--downloader-args', 'aria2c:-x 16 -s 16 -k 1M',
               '--proxy', 'socks5://127.0.0.1:10808',
-              '-o', path.join(downloadDir, '%(title).200s_%(id)s.%(ext)s') // الگوی پویا
+              '-o', path.join(downloadDir, '%(title).200s_%(id)s.%(ext)s')
             ];
-
-            const execOptions = {
-              stdio: ['pipe', 'pipe', 'pipe'],
-              timeout: 600000,
-              encoding: 'utf8'
-            };
 
             function runCmd(cmd) {
               log('▶️ اجرای دستور:', cmd);
               try {
-                const output = execSync(cmd, execOptions);
+                const output = execSync(cmd, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 600000, encoding: 'utf8' });
                 if (output) log('🟢 خروجی:', output.toString().substring(0, 500));
                 return { success: true };
               } catch(e) {
@@ -886,32 +890,24 @@ jobs:
               }
             }
 
-            // blob
             if (type === 'direct' && url.startsWith('blob:')) {
               const cmd = `${ytDlpArgs.join(' ')} "${pageUrl}"`;
               const res = runCmd(cmd);
               if (!res.success) return { ok: false, error: res.error, downloadDir };
-            }
-            // مستقیم غیر blob
-            else if (type === 'direct') {
+            } else if (type === 'direct') {
               const ariaOut = path.join(downloadDir, `video_${Date.now()}_aria.mp4`);
               const ariaCmd = `aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${downloadDir}" --out="${path.basename(ariaOut)}" "${url}"`;
               const ariaRes = runCmd(ariaCmd);
               if (ariaRes.success) {
-                // aria2 خروجی را در ariaOut گذاشت (در پوشه دانلود)
                 if (fs.existsSync(ariaOut)) return { ok: true, path: ariaOut, downloadDir };
-                // شاید با اسم دیگری ذخیره کرده باشد
                 const files = fs.readdirSync(downloadDir);
                 if (files.length > 0) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir };
               }
-              // fallback to yt-dlp
               log('🔁 تلاش با yt-dlp...');
               const cmd = `${ytDlpArgs.join(' ')} "${pageUrl}"`;
               const res = runCmd(cmd);
               if (!res.success) return { ok: false, error: res.error, downloadDir };
-            }
-            // embed
-            else if (type === 'embed') {
+            } else if (type === 'embed') {
               const cmd = `${ytDlpArgs.join(' ')} "${url}"`;
               const res = runCmd(cmd);
               if (!res.success) return { ok: false, error: res.error, downloadDir };
@@ -919,19 +915,17 @@ jobs:
               return { ok: false, error: 'نوع ناشناخته', downloadDir };
             }
 
-            // پیدا کردن فایل دانلود شده
             const files = fs.readdirSync(downloadDir).filter(f => !f.startsWith('.') && (f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm')));
             if (files.length === 0) {
               log('❌ هیچ فایلی در پوشه دانلود یافت نشد!');
               return { ok: false, error: 'No output file', downloadDir };
             }
-            // اولین فایل (بزرگترین) را برمی‌گردانیم
             const targetFile = files.sort((a,b) => fs.statSync(path.join(downloadDir,b)).size - fs.statSync(path.join(downloadDir,a)).size)[0];
             log('✅ فایل دانلود شده:', targetFile);
             return { ok: true, path: path.join(downloadDir, targetFile), downloadDir };
           }
 
-          // ======================== اسکرین‌شات و PDF ========================
+          // ======================== اسکرین‌شات کامل و PDF ========================
           async function takeFullPageScreenshot(page) {
             const shotPath = `/tmp/fullshot_${Date.now()}.png`;
             await page.screenshot({ path: shotPath, fullPage: true });
@@ -944,6 +938,7 @@ jobs:
             return pdfPath;
           }
 
+          // ======================== زوم ========================
           async function zoomPage(page, zoomIn = true) {
             const currentZoom = await page.evaluate(() => parseFloat(getComputedStyle(document.body).zoom || '1.0'));
             let newZoom = zoomIn ? Math.min(currentZoom + 0.1, 3.0) : Math.max(currentZoom - 0.1, 0.3);
@@ -1038,15 +1033,15 @@ jobs:
                   await sendScreenshotLink(page, chatId);
                   await sendMessage(chatId, `🟢 ${cnt} ناحیه اسکرول (سبز) نشانه‌گذاری شد.\nشماره ناحیه را وارد کنید.`);
                 }
-                return;
+                break;
               case 'TYPE':
                 state.typingMode = true;
                 await sendMessage(chatId, '⌨️ متن را ارسال کنید:');
-                return;
+                break;
               case 'GO_URL':
                 state.urlMode = true;
                 await sendMessage(chatId, '🌐 آدرس کامل را ارسال کنید:');
-                return;
+                break;
               case 'SELECT':
                 state.selectionMode = true;
                 const selCnt = await highlightClickableElements(page);
@@ -1058,7 +1053,7 @@ jobs:
                   await sendScreenshotLink(page, chatId);
                   await sendMessage(chatId, `🔢 ${selCnt} عنصر نشانه‌گذاری شد. شماره را وارد کنید.`);
                 }
-                return;
+                break;
               case 'EXTRACT_TEXT':
                 try {
                   const text = await extractVisibleText(page);
@@ -1068,7 +1063,7 @@ jobs:
                   await sendMessage(chatId, '❌ خطا در استخراج متن.');
                 }
                 await sendScreenshotLink(page, chatId);
-                return;
+                break;
               case 'VIDEOS':
                 state.videoMode = true;
                 const { videos, pageUrl } = await highlightVideoElements(page);
@@ -1082,7 +1077,7 @@ jobs:
                   await sendScreenshotLink(page, chatId);
                   await sendMessage(chatId, `🎥 ${videos.length} ویدیو (آبی) نشانه‌گذاری شد.\nشماره مورد نظر را بفرستید.`);
                 }
-                return;
+                break;
               case 'IMAGES':
                 state.imageMode = true;
                 const { images, pageUrl: imgPageUrl } = await highlightImages(page);
@@ -1096,7 +1091,7 @@ jobs:
                   await sendScreenshotLink(page, chatId);
                   await sendMessage(chatId, `🖼️ ${images.length} تصویر (نارنجی) نشانه‌گذاری شد.\nشماره مورد نظر را بفرستید.`);
                 }
-                return;
+                break;
               case 'FILES':
                 state.fileMode = true;
                 const { files, pageUrl: filePageUrl } = await highlightFiles(page);
@@ -1110,7 +1105,7 @@ jobs:
                   await sendScreenshotLink(page, chatId);
                   await sendMessage(chatId, `📁 ${files.length} فایل (بنفش) نشانه‌گذاری شد.\nشماره مورد نظر را بفرستید.`);
                 }
-                return;
+                break;
               case 'FULL_SCREENSHOT':
                 await sendScreenshotLink(page, chatId, true);
                 break;
@@ -1165,22 +1160,23 @@ jobs:
                   await sendMessage(chatId, '❌ هیچ پروکسی سالمی یافت نشد.');
                   process.exit(1);
                 }
+                await updateKeyboard(chatId);
                 return;
               }
               case 'HELP':
                 await sendMessage(chatId, '🎮 راهنما:\n⬆️⬇️ اسکرول هوشمند\n⌨️ تایپ\n🌐 آدرس جدید\n🔍 انتخاب با شماره\n📋 متن قابل مشاهده\n🎥 ویدیوها\n🖼️ تصاویر\n📁 فایل‌ها\n🖼️ اسکرین‌شات کامل\n📄 PDF\n🔗 لینک صفحه\n🔍 زوم +/-\n📸 اسکرین‌شات\n↵ Enter\n🔄 رفرش\n🠔 عقب\n🔁 پروکسی\n✖️ لغو');
                 await sendScreenshotLink(page, chatId);
-                return;
+                break;
               case 'CANCEL':
                 resetAllStates(state);
                 await sendMessage(chatId, '✖️ تمام عملیات‌های در حال اجرا لغو شد.');
                 await sendScreenshotLink(page, chatId);
-                return;
+                break;
+              default:
+                await sendScreenshotLink(page, chatId);
             }
-
-            if (!['SCROLL_UP', 'SCROLL_DOWN', 'TYPE', 'GO_URL', 'SELECT', 'VIDEOS', 'IMAGES', 'FILES', 'CHANGE_PROXY', 'FULL_SCREENSHOT', 'SAVE_PDF', 'PAGE_LINK'].includes(buttonId)) {
-              await sendScreenshotLink(page, chatId);
-            }
+            // در انتها کیبورد را به‌روزرسانی کن
+            await updateKeyboard(chatId);
           }
 
           // ======================== پردازش ورودی‌های متنی ========================
@@ -1192,23 +1188,27 @@ jobs:
                 const idx = parseInt(text);
                 if (isNaN(idx) || idx < 1 || idx > state.scrollAreasCount) {
                   await sendMessage(chatId, `❌ شماره بین ۱ تا ${state.scrollAreasCount} وارد کنید.`);
+                  await updateKeyboard(chatId);
                   return;
                 }
                 state.scrollSelectedIndex = idx;
                 await removeScrollHighlights(page);
                 const dirText = state.scrollDirection === 'up' ? 'بالا' : 'پایین';
                 await sendMessage(chatId, `✅ ناحیه ${idx} انتخاب شد.\nچند پیکسل به ${dirText} اسکرول کنم؟`);
+                await updateKeyboard(chatId);
                 return;
               } else {
                 const px = parseInt(text);
                 if (isNaN(px) || px <= 0) {
                   await sendMessage(chatId, '❌ عدد مثبت وارد کنید.');
+                  await updateKeyboard(chatId);
                   return;
                 }
                 await scrollAreaByPixel(page, state.scrollSelectedIndex, px, state.scrollDirection);
                 await sleep(300);
                 resetAllStates(state);
                 await sendScreenshotLink(page, chatId);
+                await updateKeyboard(chatId);
                 return;
               }
             }
@@ -1220,6 +1220,7 @@ jobs:
                 await sleep(300);
               }
               await sendScreenshotLink(page, chatId);
+              await updateKeyboard(chatId);
               return;
             }
 
@@ -1233,18 +1234,24 @@ jobs:
                 } catch(e) { err('بارگذاری ناموفق:', e.message); await sendMessage(chatId, '❌ خطا در باز کردن آدرس.'); }
               }
               await sendScreenshotLink(page, chatId);
+              await updateKeyboard(chatId);
               return;
             }
 
             if (state.selectionMode) {
               const num = parseInt(text);
-              if (isNaN(num) || num <= 0) { await sendMessage(chatId, '❌ عدد معتبر وارد کنید.'); return; }
+              if (isNaN(num) || num <= 0) { 
+                await sendMessage(chatId, '❌ عدد معتبر وارد کنید.'); 
+                await updateKeyboard(chatId);
+                return; 
+              }
               const ok = await clickByNumber(page, num);
               if (!ok) await sendMessage(chatId, `❌ کلیک روی عنصر ${num} ناموفق بود.`);
               await removeHighlights(page);
               state.selectionMode = false;
               await sleep(300);
               await sendScreenshotLink(page, chatId);
+              await updateKeyboard(chatId);
               return;
             }
 
@@ -1252,6 +1259,7 @@ jobs:
               const num = parseInt(text);
               if (isNaN(num) || num < 1 || num > state.videoData.length) {
                 await sendMessage(chatId, '❌ شماره نامعتبر.');
+                await updateKeyboard(chatId);
                 return;
               }
               const sel = state.videoData[num-1];
@@ -1265,8 +1273,8 @@ jobs:
                   await sendMessage(chatId, '❌ تبدیل ویدیو به فرمت سازگار ممکن نشد.');
                   await removeVideoHighlights(page);
                   resetAllStates(state);
-                  // پاکسازی پوشه دانلود
                   try { fs.rmSync(res.downloadDir, { recursive: true }); } catch(_) {}
+                  await updateKeyboard(chatId);
                   return;
                 }
                 const chunkDir = `/tmp/video_chunks_${Date.now()}`;
@@ -1282,7 +1290,6 @@ jobs:
                   links.forEach((l, i) => msg += `${i+1}. ${l}\n`);
                   await sendMessage(chatId, msg);
                 }
-                // پاکسازی همه‌جانبه
                 try { fs.rmSync(res.downloadDir, { recursive: true }); } catch(_) {}
                 for (const c of chunks) try { fs.unlinkSync(c); } catch(_) {}
                 try { fs.rmSync(chunkDir, { recursive: true }); } catch(_) {}
@@ -1297,6 +1304,7 @@ jobs:
               resetAllStates(state);
               await sleep(300);
               await sendScreenshotLink(page, chatId);
+              await updateKeyboard(chatId);
               return;
             }
 
@@ -1304,6 +1312,7 @@ jobs:
               const num = parseInt(text);
               if (isNaN(num) || num < 1 || num > state.imageData.length) {
                 await sendMessage(chatId, '❌ شماره نامعتبر.');
+                await updateKeyboard(chatId);
                 return;
               }
               const url = state.imageData[num-1];
@@ -1321,6 +1330,7 @@ jobs:
               resetAllStates(state);
               await sleep(300);
               await sendScreenshotLink(page, chatId);
+              await updateKeyboard(chatId);
               return;
             }
 
@@ -1328,6 +1338,7 @@ jobs:
               const num = parseInt(text);
               if (isNaN(num) || num < 1 || num > state.fileData.length) {
                 await sendMessage(chatId, '❌ شماره نامعتبر.');
+                await updateKeyboard(chatId);
                 return;
               }
               const url = state.fileData[num-1].src;
@@ -1345,6 +1356,7 @@ jobs:
               resetAllStates(state);
               await sleep(300);
               await sendScreenshotLink(page, chatId);
+              await updateKeyboard(chatId);
               return;
             }
 
@@ -1354,6 +1366,7 @@ jobs:
             } else if (text === 'help') {
               await sendMessage(chatId, '🎮 دکمه‌ها:\n⬆️⬇️ اسکرول\n⌨️ تایپ\n🌐 آدرس جدید\n🔍 انتخاب با شماره\n📋 متن\n🎥 ویدیوها\n🖼️ تصاویر\n📁 فایل‌ها\n🖼️ اسکرین‌شات کامل\n📄 PDF\n🔗 لینک صفحه\n🔍 زوم\n📸 اسکرین‌شات\n↵ Enter\n🔄 رفرش\n🠔 عقب\n🔁 پروکسی\n✖️ لغو');
             }
+            await updateKeyboard(chatId);
           }
 
           // ======================== مدیریت پروکسی و مرورگر ========================
@@ -1447,8 +1460,10 @@ jobs:
               if (!found) { err('هیچ پروکسی سالمی یافت نشد.'); process.exit(1); }
 
               let page = browserManager.page;
-              if (OWNER) await sendMessage(OWNER, '🟢 ربات روشن شد.');
-              else log('⚠️ OWNER_CHAT_ID تنظیم نشده.');
+              if (OWNER) {
+                await sendMessage(OWNER, '🟢 ربات روشن شد.');
+                await updateKeyboard(OWNER);
+              } else log('⚠️ OWNER_CHAT_ID تنظیم نشده.');
 
               log('🧹 پاک‌سازی تاریخچه...');
               let offset = null, flushed = 0;
@@ -1513,6 +1528,7 @@ jobs:
                         resetAllStates(st);
                         await sendMessage(chatId, '⚠️ خطا. حالت‌ها ریست شد.');
                         try { await sendScreenshotLink(page, chatId); } catch(e) {}
+                        await updateKeyboard(chatId);
                       }
                       page = browserManager.page;
                     }
