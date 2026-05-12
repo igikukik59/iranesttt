@@ -852,9 +852,10 @@ jobs:
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             const timestamp = Date.now();
 
-            const ytDlpCmd = [
+            const ytDlpBaseArgs = [
               'yt-dlp',
               '--no-playlist',
+              '--playlist-items', '1',  // فقط اولین ویدیو
               '--merge-output-format', 'mp4',
               '--force-ipv4',
               "--user-agent", "'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'",
@@ -864,35 +865,57 @@ jobs:
               '--proxy', 'socks5://127.0.0.1:10808'
             ].join(' ');
 
+            let lastError = '';
+
             if (type === 'direct' && url.startsWith('blob:')) {
               const outPath = path.join(dir, `video_${timestamp}_page.mp4`);
+              log(`📥 تلاش دانلود blob از صفحه: ${pageUrl}`);
               try {
-                execSync(`${ytDlpCmd} -o "${outPath}" "${pageUrl}"`, { stdio: 'inherit', timeout: 600000 });
+                execSync(`${ytDlpBaseArgs} -o "${outPath}" "${pageUrl}"`, { stdio: 'pipe', timeout: 300000 });
+                log('✅ blob دانلود شد.');
                 return { ok: true, path: outPath };
-              } catch(e) { err('yt-dlp blob failed:', e.message); return { ok: false }; }
+              } catch(e) {
+                lastError = e.stderr ? e.stderr.toString() : e.message;
+                log('❌ yt-dlp blob fail:', lastError);
+                return { ok: false, error: lastError };
+              }
             }
 
             if (type === 'direct') {
               const outPath = path.join(dir, `video_${timestamp}_${path.basename(new URL(url).pathname) || 'video.mp4'}`);
+              log(`📥 تلاش دانلود مستقیم: ${url}`);
               try {
-                execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
+                execSync(`aria2c --socks5-proxy=127.0.0.1:10808 --check-certificate=false -x16 -s16 -k1M --user-agent="Mozilla/5.0" --referer="${referer}" --dir="${dir}" --out="${path.basename(outPath)}" "${url}"`, { stdio: 'pipe', timeout: 300000 });
+                log('✅ دانلود مستقیم موفق.');
                 return { ok: true, path: outPath };
               } catch(e) {
-                log('دانلود مستقیم شکست، تلاش با yt-dlp...');
-                const fallbackPath = path.join(dir, `video_${timestamp}_page.mp4`);
+                lastError = e.stderr ? e.stderr.toString() : e.message;
+                log('⚠️ دانلود مستقیم شکست، تلاش با yt-dlp...', lastError);
+                const fallbackPath = path.join(dir, `video_${timestamp}_fallback.mp4`);
                 try {
-                  execSync(`${ytDlpCmd} -o "${fallbackPath}" "${pageUrl}"`, { stdio: 'inherit', timeout: 600000 });
+                  execSync(`${ytDlpBaseArgs} -o "${fallbackPath}" "${pageUrl}"`, { stdio: 'pipe', timeout: 300000 });
+                  log('✅ yt-dlp fallback موفق.');
                   return { ok: true, path: fallbackPath };
-                } catch(e2) { err('yt-dlp نیز شکست:', e2.message); return { ok: false }; }
+                } catch(e2) {
+                  lastError = e2.stderr ? e2.stderr.toString() : e2.message;
+                  log('❌ yt-dlp نیز شکست:', lastError);
+                  return { ok: false, error: lastError };
+                }
               }
             } else if (type === 'embed') {
               const outPath = path.join(dir, `video_${timestamp}_${platform || 'embed'}.mp4`);
+              log(`📥 دانلود embed: ${url}`);
               try {
-                execSync(`${ytDlpCmd} -o "${outPath}" "${url}"`, { stdio: 'inherit', timeout: 600000 });
+                execSync(`${ytDlpBaseArgs} -o "${outPath}" "${url}"`, { stdio: 'pipe', timeout: 300000 });
+                log('✅ embed دانلود شد.');
                 return { ok: true, path: outPath };
-              } catch(e) { err('yt-dlp embed شکست:', e.message); return { ok: false }; }
+              } catch(e) {
+                lastError = e.stderr ? e.stderr.toString() : e.message;
+                log('❌ yt-dlp embed fail:', lastError);
+                return { ok: false, error: lastError };
+              }
             }
-            return { ok: false };
+            return { ok: false, error: 'نوع ویدیو ناشناخته' };
           }
 
           // ======================== اسکرین‌شات کامل و PDF ========================
@@ -1217,8 +1240,10 @@ jobs:
               }
               const sel = state.videoData[num-1];
               await sendMessage(chatId, `📥 دانلود ویدیوی شماره ${num} ...`);
+              log(`🎬 درخواست دانلود ویدیو #${num}: ${sel.src}`);
               const res = await downloadVideo(sel.src, sel.type, state.pageUrlAtVideo, sel.platform, state.pageUrlAtVideo);
               if (res.ok) {
+                log('📦 دانلود موفق، شروع تبدیل...');
                 const compatiblePath = await ensureCompatibleVideo(res.path);
                 if (!compatiblePath) {
                   await sendMessage(chatId, '❌ تبدیل ویدیو به فرمت سازگار ممکن نشد.');
@@ -1226,9 +1251,10 @@ jobs:
                   resetAllStates(state);
                   return;
                 }
+                log('✂️ تقسیم ویدیو...');
                 const chunkDir = `/tmp/video_chunks_${Date.now()}`;
                 fs.mkdirSync(chunkDir, { recursive: true });
-                const chunks = splitVideoSafe(compatiblePath, chunkDir);
+                const chunks = await splitVideoSafe(compatiblePath, chunkDir);
                 if (chunks.length === 0) {
                   await sendMessage(chatId, '❌ خطا در تقسیم ویدیو.');
                 } else {
@@ -1239,12 +1265,15 @@ jobs:
                   links.forEach((l, i) => msg += `${i+1}. ${l}\n`);
                   await sendMessage(chatId, msg);
                 }
+                // پاکسازی
                 try { fs.unlinkSync(res.path); } catch(_) {}
                 if (compatiblePath !== res.path) try { fs.unlinkSync(compatiblePath); } catch(_) {}
                 for (const c of chunks) try { fs.unlinkSync(c); } catch(_) {}
                 try { fs.rmSync(chunkDir, { recursive: true }); } catch(_) {}
               } else {
-                await sendMessage(chatId, '❌ دانلود ویدیو ناموفق.');
+                log('❌ دانلود ویدیو ناموفق.');
+                const errMsg = res.error ? `\nخطای فنی: ${res.error.substring(0, 500)}` : '';
+                await sendMessage(chatId, `❌ دانلود ویدیو ناموفق.${errMsg}`);
               }
               await removeVideoHighlights(page);
               resetAllStates(state);
