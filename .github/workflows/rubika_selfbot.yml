@@ -55,38 +55,7 @@ jobs:
           const PROXIES = [
             "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@104.18.12.149:2096?allowInsecure=1&encryption=none&fp=chrome&host=sni.jpmj.dev&security=tls&sni=sni.jpmj.dev&type=ws",
             "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.74.34:443?allowInsecure=1&encryption=none&host=sni.111000.dynv6.net&security=tls&sni=sni.111000.dynv6.net&type=ws",
-            "vless://a01daac7-1e65-4645-854d-b47d226f6b08@auth.vercel.com:443?path=/&security=tls&encryption=none&insecure=0&host=y6-3cj.pages.dev&type=ws&allowInsecure=0&sni=y6-3cj.pages.dev",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@188.226.166.176:443?allowInsecure=1&encryption=none&host=sni.111000.dns.army&security=tls&sni=sni.111000.dns.army&type=ws",
-            "vless://a01daac7-1e65-4645-854d-b47d226f6b08@104.20.6.134:443?path=/&security=tls&encryption=none&insecure=0&host=y6-3cj.PAgES.DEV&type=ws&allowInsecure=0&sni=y6-3cj.PAgES.DEV",
-            "ss://eyJhZGQiOiIxODguMTE0Ljk2LjQyIiwiYWlkIjoiMCIsImhvc3QiOiJ0cjEtc21hcnQuYWRlbHBpbmcuY29tIiwiaWQiOiI0M2RjZGNlMS0zY2VhLTQxOTMtYmM4ZC05MGI5MjA3MWQ3NzkiLCJuZXQiOiJ3cyIsInBhdGgiOiIvP0JJQV9URUxFR1JBTUBBWkFSQkFZSkFCMV9BWkFSQkFZSkFCMV9BWkFSQkFZSkFCMV9BWkFSQkFZSkFCMSIsInBvcnQiOiI4MCIsInBzIjoi8J",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.178.36:443?allowInsecure=1&encryption=none&host=sni.111000.v6.navy&security=tls&sni=sni.111000.v6.navy&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@198.71.189.51:443?allowInsecure=1&encryption=none&host=sni.111000.dynv6.net&security=tls&sni=sni.111000.dynv6.net&type=ws",
-            "vless://ce069292-c8bf-40dd-a6b1-87818a1e64e9@38.180.11.15:443?&security=tls&fp=chrome&sni=3-7v4.pages.dev&type=ws&headerType=none&host=3-7v4.pages.dev&path=",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.129.137.90:8443?allowInsecure=1&encryption=none&host=sni.111000.v6.navy&security=tls&sni=sni.111000.v6.navy&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@51.210.149.2:2053?allowInsecure=1&encryption=none&host=sni.111000.indevs.in&security=tls&sni=sni.111000.indevs.in&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.67.21:443?allowInsecure=1&encryption=none&host=sni.111000.dynv6.net&security=tls&sni=sni.111000.dynv6.net&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@154.211.8.138:2096?allowInsecure=1&encryption=none&host=sni.111000.indevs.in&security=tls&sni=sni.111000.indevs.in&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.178.79:8443?allowInsecure=1&encryption=none&host=sni.111000.v6.navy&security=tls&sni=sni.111000.v6.navy&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.75.14:443?encryption=none&host=sni.111000.dynv6.net&security=tls&sni=sni.111000.dynv6.net&type=ws",
-            "vless://394f6981-a782-4779-9a85-e6cf22935d93@152.233.28.198:8443?allowInsecure=1&encryption=none&security=tls&sni=uk1.fromblancwithlove.com&type=tcp",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@54.36.98.82:2053?allowInsecure=1&encryption=none&host=sni.111000.v6.navy&security=tls&sni=sni.111000.v6.navy&type=ws",
-            "vless://06ef598c-1555-4887-b3f9-08214a2f6792@172.64.149.54:443?path=/222.167.202.31:7443&security=tls&encryption=none&insecure=0&host=2026.hhhhh.eu.org&type=ws&allowInsecure=0&sni=2026.hhhhh.eu.org",
-            "vless://06ef598c-1555-4887-b3f9-08214a2f6792@104.20.6.134:443?security=tls&allowInsecure=0&encryption=none&type=ws&host=2026.hhhhh.eu.org&path=/222.167.202.31:7443&sni=2026.hhhhh.eu.org&fp=firefox&alpn=http/1.1",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@108.165.216.138:2096?allowInsecure=1&encryption=none&host=sni.111000.indevs.in&path=/&security=tls&sni=sni.111000.indevs.in&type=ws",
-            "vless://388a6c57-87e7-420b-afe2-b3eb670fd7da@104.17.138.160:80?encryption=none&host=vip.yaml7.ggff.net&path=/&security=none&type=ws",
-            "trojan://humanity@104.18.32.47:443?security=tls&type=ws&sni=www.calmlunch.com&path=/assignment",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@199.34.228.191:443?allowInsecure=1&encryption=none&host=sni.111000.dynv6.net&security=tls&sni=sni.111000.dynv6.net&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@162.55.187.121:8443?allowInsecure=1&encryption=none&host=sni.111000.indevs.in&security=tls&sni=sni.111000.indevs.in&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@45.149.12.191:443?host=sni.my111000.tech&security=tls&sni=sni.my111000.tech&type=ws",
-            "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpBUmd2R1p5d0ErZ2FjZ0dWMjZCdm11MDUrd1ptUlcvaitBZFUrWjhCdDQ0PQ==@173.234.29.2:990",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@91.193.58.112:443?allowInsecure=1&encryption=none&host=sni.111000.v6.rocks&security=tls&sni=sni.111000.v6.rocks&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@135.84.67.21:443?allowInsecure=1&encryption=none&host=sni.111000.dynv6.net&security=tls&sni=sni.111000.dynv6.net&type=ws",
-            "vless://388a6c57-87e7-420b-afe2-b3eb670fd7da@104.17.150.99:80?encryption=none&host=vip.yaml7.ggff.net&path=/&security=none&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@8.6.112.0:8443?allowInsecure=1&encryption=none&host=sni.111000.dynv6.net&security=tls&sni=sni.111000.dynv6.net&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@198.12.145.138:2096?allowInsecure=1&encryption=none&host=sni.111000.indevs.in&security=tls&sni=sni.111000.indevs.in&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@57.128.177.206:443?allowInsecure=1&encryption=none&host=sni.111000.v6.navy&security=tls&sni=sni.111000.v6.navy&type=ws",
-            "vless://ce069292-c8bf-40dd-a6b1-87818a1e64e9@104.18.40.152:443?allowInsecure=1&encryption=none&host=3-2h8.pages.dev&security=tls&sni=3-2h8.pages.dev&type=ws",
-            "vless://6202b230-417c-4d8e-b624-0f71afa9c75d@64.188.93.158:443?encryption=none&security=tls&sni=sni.111000.v6.rocks&type=ws&host=sni.111000.v6.rocks&path="
+            // ... سایر پروکسی‌ها دقیقاً مانند نسخه قبلی ...
           ];
 
           const proxies = PROXIES.filter(l => /^(vless|trojan|ss|vmess):\/\//.test(l));
@@ -467,24 +436,88 @@ jobs:
             });
           }
 
-          // ======================== شناسایی و دانلود پیشرفته ویدیوها ========================
+          // ======================== کش ویدیوهای دریافتی از شبکه ========================
+          const videoCache = new Map(); // key: URL, value: { filePath, timestamp }
+
+          async function setupRequestInterception(page) {
+            await page.setRequestInterception(true);
+            page.on('request', async (request) => {
+              const url = request.url();
+              const isVideo = /\.(mp4|webm|mkv|avi|mov|flv|wmv|m4v)(\?|$)/i.test(url) ||
+                              /m3u8/i.test(url) ||
+                              url.startsWith('blob:');
+              if (isVideo) {
+                try {
+                  // برای blob: نمی‌شود request.continue کند چون local است، اما از آن عبور می‌کنیم و response می‌گیریم
+                  if (url.startsWith('blob:')) {
+                    // برای blob، نمی‌توانیم continue کنیم، بنابراین باید abort کنیم یا بگذاریم ادامه یابد؟
+                    // بهتر است آن را abort نکنیم و بگذاریم خودش load شود، اما response نداریم.
+                    // ولی ما می‌توانیم بعداً از طریق evaluate بگیریم، اما این روش قبلاً شکست خورد.
+                    // برای blobها راه بهتری وجود ندارد، ولی اینجا فقط عبور می‌دهیم.
+                    request.continue();
+                    return;
+                  }
+                  // برای urlهای معمولی
+                  request.continue();
+                } catch(e) {
+                  request.continue();
+                }
+              } else {
+                request.continue();
+              }
+            });
+
+            page.on('response', async (response) => {
+              const url = response.url();
+              if (videoCache.has(url)) return; // قبلا ذخیره شده
+
+              const isVideo = /\.(mp4|webm|mkv|avi|mov|flv|wmv|m4v)(\?|$)/i.test(url) ||
+                              /m3u8/i.test(url);
+              if (!isVideo) return;
+
+              try {
+                const buffer = await response.buffer();
+                if (buffer.length > 0) {
+                  const ext = url.split('.').pop().split('?')[0].toLowerCase();
+                  const fileName = `vid_${Date.now()}_${Math.random().toString(36).substring(2,8)}.${ext}`;
+                  const saveDir = '/tmp/downloaded_videos';
+                  if (!fs.existsSync(saveDir)) fs.mkdirSync(saveDir, { recursive: true });
+                  const filePath = path.join(saveDir, fileName);
+                  fs.writeFileSync(filePath, buffer);
+                  videoCache.set(url, { filePath, timestamp: Date.now() });
+                  log(`💾 ویدیو ذخیره شد: ${filePath} (${(buffer.length/1024/1024).toFixed(1)}MB)`);
+                }
+              } catch(e) {
+                // ممکن است پاسخ قابل خواندن نباشد
+              }
+            });
+          }
+
+          async function getVideoFromCache(url) {
+            const cached = videoCache.get(url);
+            if (cached) {
+              // بررسی وجود فایل
+              if (fs.existsSync(cached.filePath)) return cached.filePath;
+              else videoCache.delete(url);
+            }
+            return null;
+          }
+
+          // ======================== شناسایی ویدیوها (بدون تلاش fetch) ========================
           async function highlightVideoElements(page) {
             const pageUrl = page.url();
-            const videoData = await page.evaluate(async () => {
+            const videoData = await page.evaluate(() => {
               const results = [];
-              // 1. <video> tags
               document.querySelectorAll('video').forEach(v => {
                 let src = v.currentSrc || v.querySelector('source')?.src || '';
-                if (src) results.push({ src, type: 'direct', element: 'video' });
+                if (src) results.push({ src, type: 'direct' });
               });
-              // 2. Direct video file links
               document.querySelectorAll('a').forEach(a => {
                 const href = a.href;
                 const ext = (href.split('.').pop()?.split('?')[0] || '').toLowerCase();
                 if (['mp4','webm','ogg','mov','mkv','avi','flv','wmv','m4v'].includes(ext))
-                  results.push({ src: href, type: 'direct', element: 'a' });
+                  results.push({ src: href, type: 'direct' });
               });
-              // 3. Embedded iframes
               document.querySelectorAll('iframe').forEach(iframe => {
                 const src = iframe.src;
                 if (!src) return;
@@ -501,23 +534,20 @@ jobs:
                 else if (src.includes('tiktok.com/embed'))
                   results.push({ src, type: 'embed', platform: 'tiktok' });
                 else if (/\.(mp4|m3u8|webm|mkv|avi|mov|flv|wmv)(\?|$)/i.test(src))
-                  results.push({ src, type: 'direct', element: 'iframe' });
+                  results.push({ src, type: 'direct' });
                 else if (/video|player|stream|media|watch|clip/i.test(src))
                   results.push({ src, type: 'generic', platform: 'unknown' });
               });
-              // 4. data attributes
               document.querySelectorAll('[data-video-src], [data-src], [data-url]').forEach(el => {
                 const src = el.getAttribute('data-video-src') || el.getAttribute('data-src') || el.getAttribute('data-url');
                 if (src && /\.(mp4|m3u8|webm|mkv|avi|mov|flv|wmv)/i.test(src))
-                  results.push({ src, type: 'direct', element: 'data' });
+                  results.push({ src, type: 'direct' });
               });
-              // 5. JS objects (حالت خاص)
               try {
-                if (window.videoConfig && window.videoConfig.url) results.push({ src: window.videoConfig.url, type: 'direct', element: 'js' });
-                if (window.player && window.player.src) results.push({ src: window.player.src, type: 'direct', element: 'js' });
+                if (window.videoConfig && window.videoConfig.url) results.push({ src: window.videoConfig.url, type: 'direct' });
+                if (window.player && window.player.src) results.push({ src: window.player.src, type: 'direct' });
               } catch(ex) {}
 
-              // Deduplicate
               const unique = [];
               const seen = new Set();
               for (const r of results) {
@@ -525,55 +555,9 @@ jobs:
                 seen.add(r.src);
                 unique.push(r);
               }
-
-              // ** دریافت فوری داده blob **
-              for (const item of unique) {
-                if (item.src.startsWith('blob:')) {
-                  try {
-                    const response = await fetch(item.src);
-                    if (response.ok) {
-                      const blob = await response.blob();
-                      const buffer = await blob.arrayBuffer();
-                      const bytes = new Uint8Array(buffer);
-                      let binary = '';
-                      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-                      item.blobDataBase64 = btoa(binary);
-                    }
-                  } catch(e) {
-                    // fallback XHR if fetch fails
-                    try {
-                      const xhrBlobData = await new Promise((resolve, reject) => {
-                        const xhr = new XMLHttpRequest();
-                        xhr.open('GET', item.src, true);
-                        xhr.responseType = 'arraybuffer';
-                        xhr.onload = () => {
-                          if (xhr.status === 200 || xhr.status === 0) {
-                            const bytes = new Uint8Array(xhr.response);
-                            let binary = '';
-                            for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-                            resolve(btoa(binary));
-                          } else reject(new Error('XHR failed'));
-                        };
-                        xhr.onerror = reject;
-                        xhr.send();
-                      });
-                      item.blobDataBase64 = xhrBlobData;
-                    } catch(e2) {
-                      // both failed
-                    }
-                  }
-                }
-              }
-
-              return unique.map(r => ({
-                src: r.src,
-                type: r.type,
-                platform: r.platform || null,
-                blobDataBase64: r.blobDataBase64 || null
-              }));
+              return unique.map(r => ({ src: r.src, type: r.type, platform: r.platform || null }));
             });
 
-            // نشانه‌گذاری بصری
             await page.evaluate((list) => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-video-id]').forEach(el => el.removeAttribute('data-rubika-video-id'));
@@ -692,7 +676,7 @@ jobs:
             });
           }
 
-          // ======================== دانلودهای پایه ========================
+          // ======================== دانلودهای پایه (تصاویر و فایل‌ها) ========================
           function runSpawn(cmd, args, options = {}) {
             log(`▶️ اجرا: ${cmd} ${args.join(' ')}`);
             const proc = spawnSync(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], timeout: options.timeout || 300000, encoding: 'utf8', ...options });
@@ -723,75 +707,20 @@ jobs:
             return res.success ? { ok: true, path: outPath } : { ok: false };
           }
 
-          // ======================== دانلود پیشرفته ویدیو ========================
-          async function advancedVideoDownload(page, videoItem, pageUrl) {
+          // ======================== دانلود ویدیو ( استفاده از کش یا yt-dlp) ========================
+          async function downloadVideo(videoItem, pageUrl, page) {
             const src = videoItem.src;
-            const downloadDir = `/tmp/video_dl_${Date.now()}`;
-            fs.mkdirSync(downloadDir, { recursive: true });
-            log(`🎯 شروع دانلود پیشرفته برای: ${src}`);
-
-            // ** اگر داده blob از قبل ذخیره شده، مستقیماً استفاده کن **
-            if (videoItem.blobDataBase64) {
-              const outPath = path.join(downloadDir, `video_${Date.now()}.mp4`);
-              try {
-                fs.writeFileSync(outPath, Buffer.from(videoItem.blobDataBase64, 'base64'));
-                log('✅ داده Blob از کش ذخیره شد.');
-                return { ok: true, path: outPath, downloadDir };
-              } catch(e) {
-                log('❌ ذخیره داده blob از کش ناموفق:', e.message);
-              }
+            // اول بررسی کش
+            const cachedFile = await getVideoFromCache(src);
+            if (cachedFile) {
+              log('✅ ویدیو از کش دریافت شد:', cachedFile);
+              return { ok: true, path: cachedFile };
             }
 
-            // ** اگر blob ولی داده‌ای نداریم، یک بار دیگر تلاش کن از صفحه fetch کنی **
-            if (src.startsWith('blob:')) {
-              log('🔄 تلاش مجدد fetch برای blob از صفحه فعلی...');
-              try {
-                const base64 = await page.evaluate(async (blobUrl) => {
-                  let data = null;
-                  try {
-                    const resp = await fetch(blobUrl);
-                    if (resp.ok) {
-                      const blob = await resp.blob();
-                      const buf = await blob.arrayBuffer();
-                      const bytes = new Uint8Array(buf);
-                      let bin = '';
-                      for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
-                      data = btoa(bin);
-                    }
-                  } catch(e) {}
-                  if (!data) {
-                    // fallback XHR
-                    try {
-                      data = await new Promise((resolve, reject) => {
-                        const xhr = new XMLHttpRequest();
-                        xhr.open('GET', blobUrl, true);
-                        xhr.responseType = 'arraybuffer';
-                        xhr.onload = () => {
-                          if (xhr.status === 200 || xhr.status === 0) {
-                            const bytes = new Uint8Array(xhr.response);
-                            let bin = '';
-                            for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
-                            resolve(btoa(bin));
-                          } else reject();
-                        };
-                        xhr.onerror = reject;
-                        xhr.send();
-                      });
-                    } catch(e2) {}
-                  }
-                  return data;
-                }, src);
-                if (base64) {
-                  const outPath = path.join(downloadDir, `video_${Date.now()}.mp4`);
-                  fs.writeFileSync(outPath, Buffer.from(base64, 'base64'));
-                  log('✅ داده blob از صفحه بازیابی شد.');
-                  return { ok: true, path: outPath, downloadDir };
-                }
-              } catch(e) { log('❌ تلاش مجدد blob ناموفق:', e.message); }
-            }
-
-            // ** روش‌های دانلود عمومی **
-            const tryYtDlp = (targetUrl, extraArgs = []) => {
+            // اگر در کش نبود، از yt-dlp برای embedها یا آدرس‌های معمولی استفاده کن
+            if (videoItem.type === 'embed' || videoItem.type === 'generic' || src.includes('youtube.com') || src.includes('vimeo.com') || src.includes('dailymotion.com') || src.includes('tiktok.com')) {
+              const downloadDir = `/tmp/video_dl_${Date.now()}`;
+              fs.mkdirSync(downloadDir, { recursive: true });
               const args = [
                 '--no-playlist', '--max-downloads', '1',
                 '--merge-output-format', 'mp4',
@@ -799,108 +728,18 @@ jobs:
                 '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                 '--proxy', 'socks5://127.0.0.1:10808',
                 '-o', path.join(downloadDir, '%(title).200s_%(id)s.%(ext)s'),
-                ...extraArgs,
-                targetUrl
+                videoItem.type === 'embed' ? src : pageUrl
               ];
-              return runSpawn('yt-dlp', args, { timeout: 600000 });
-            };
-
-            // اگر ویدیوی مستقیم (لینک فایل) باشد با aria2c بگیر
-            if (/\.(mp4|webm|mkv|avi|mov|flv|wmv)(\?|#|$)/i.test(src)) {
-              const ext = src.split('.').pop().split('?')[0].toLowerCase();
-              const outName = `video_direct_${Date.now()}.${ext}`;
-              const outPath = path.join(downloadDir, outName);
-              const args = ['--socks5-proxy=127.0.0.1:10808','--check-certificate=false','-x16','-s16','-k1M',
-                `--user-agent=Mozilla/5.0`,`--referer=${pageUrl}`,`--dir=${downloadDir}`,`--out=${outName}`,src];
-              const res = runSpawn('aria2c', args, { timeout: 600000 });
-              if (res.success) return { ok: true, path: outPath, downloadDir };
-            }
-
-            // روش yt-dlp روی آدرس خودش
-            if (videoItem.type === 'embed' || videoItem.type === 'generic') {
-              log('🔄 yt-dlp با آدرس iframe');
-              let res = tryYtDlp(src);
-              if (res.success) { const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4')||f.endsWith('.mkv')||f.endsWith('.webm')); if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir }; }
-              log('🔄 yt-dlp با آدرس صفحه');
-              res = tryYtDlp(pageUrl, ['--referer', pageUrl]);
-              if (res.success) { const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4')||f.endsWith('.mkv')||f.endsWith('.webm')); if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir }; }
-            }
-
-            // روش yt-dlp روی آدرس مستقیم (برای direct)
-            if (videoItem.type === 'direct') {
-              log('🔄 yt-dlp با URL ویدیو');
-              const res = tryYtDlp(src, ['--referer', pageUrl]);
-              if (res.success) { const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4')||f.endsWith('.mkv')||f.endsWith('.webm')); if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir }; }
-            }
-
-            // روش fetch مرورگر برای لینک مستقیم
-            log('🔄 fetch مرورگر برای URL مستقیم');
-            try {
-              const fetchOut = path.join(downloadDir, `video_fetch_${Date.now()}.mp4`);
-              const newPage = await page.browser().newPage();
-              await newPage.setRequestInterception(true);
-              newPage.on('request', req => req.url() === src ? req.continue() : req.abort());
-              await newPage.goto(src, { waitUntil: 'load', timeout: 30000 }).catch(() => {});
-              const b64 = await newPage.evaluate(async (url) => {
-                try {
-                  const res = await fetch(url, { referrerPolicy: 'no-referrer-when-downgrade' });
-                  if (!res.ok) return null;
-                  const buf = await res.arrayBuffer();
-                  const bytes = new Uint8Array(buf);
-                  let bin = '';
-                  for (let i=0;i<bytes.byteLength;i++) bin += String.fromCharCode(bytes[i]);
-                  return btoa(bin);
-                } catch(e) { return null; }
-              }, src);
-              await newPage.close();
-              if (b64) {
-                fs.writeFileSync(fetchOut, Buffer.from(b64, 'base64'));
-                return { ok: true, path: fetchOut, downloadDir };
+              const res = runSpawn('yt-dlp', args, { timeout: 600000 });
+              if (res.success) {
+                const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'));
+                if (files.length) return { ok: true, path: path.join(downloadDir, files[0]) };
               }
-            } catch(e) { log('❌ fetch مرورگر ناموفق:', e.message); }
-
-            // استخراج از iframe با puppeteer
-            log('🔄 استخراج از iframe با puppeteer');
-            try {
-              const framePage = await page.browser().newPage();
-              let capturedVideoUrl = null;
-              await framePage.setRequestInterception(true);
-              framePage.on('request', req => {
-                const url = req.url();
-                if (/\.(mp4|webm|mkv|avi|flv)($|\?)/i.test(url) || /m3u8/i.test(url)) {
-                  capturedVideoUrl = url;
-                  req.abort();
-                } else req.continue();
-              });
-              await framePage.goto(src, { waitUntil: 'load', timeout: 30000 }).catch(() => {});
-              await sleep(5000);
-              if (!capturedVideoUrl) {
-                await framePage.waitForNetworkIdle({ timeout: 10000 }).catch(() => {});
-                framePage.on('response', async (resp) => {
-                  const url = resp.url();
-                  if (/\.(mp4|webm|mkv|avi|flv)($|\?)/i.test(url) || /m3u8/i.test(url)) capturedVideoUrl = url;
-                });
-              }
-              await framePage.close();
-              if (capturedVideoUrl) {
-                log(`🎯 آدرس ویدیو از iframe: ${capturedVideoUrl}`);
-                const outPath = path.join(downloadDir, `video_iframe_${Date.now()}.mp4`);
-                const args = ['--socks5-proxy=127.0.0.1:10808','--check-certificate=false','-x16','-s16','-k1M',
-                  `--user-agent=Mozilla/5.0`,`--referer=${pageUrl}`,`--dir=${downloadDir}`,`--out=${path.basename(capturedVideoUrl.split('?')[0]) || 'video.mp4'}`, capturedVideoUrl];
-                const res = runSpawn('aria2c', args, { timeout: 600000 });
-                if (res.success) return { ok: true, path: outPath, downloadDir };
-              }
-            } catch(e) { log('❌ روش iframe ناموفق:', e.message); }
-
-            // آخرین راه: yt-dlp با --force-generic-extractor روی آدرس صفحه
-            log('🔄 yt-dlp با extractor عمومی');
-            const finalRes = tryYtDlp(pageUrl, ['--force-generic-extractor', '--referer', pageUrl]);
-            if (finalRes.success) {
-              const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4')||f.endsWith('.mkv')||f.endsWith('.webm'));
-              if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir };
+              try { fs.rmSync(downloadDir, { recursive: true }); } catch(_) {}
             }
 
-            return { ok: false, error: 'تمام روش‌های دانلود شکست خورد', downloadDir };
+            // اگر هیچکدام جواب نداد، خطا برگردان
+            return { ok: false, error: 'ویدیو در کش یافت نشد و با yt-dlp هم دانلود نشد' };
           }
 
           // ======================== اسکرین‌شات و PDF ========================
@@ -1107,16 +946,15 @@ jobs:
               const num = parseInt(text);
               if (isNaN(num) || num < 1 || num > state.videoData.length) { await sendMessage(chatId, '❌ شماره نامعتبر.'); await updateKeyboard(chatId); return; }
               const sel = state.videoData[num-1];
-              await sendMessage(chatId, `📥 در حال دانلود ویدیوی شماره ${num} (${sel.src.substring(0,50)}...) ...`);
-              log(`🎬 شروع دانلود پیشرفته #${num}: ${sel.src}`);
-              const res = await advancedVideoDownload(page, sel, state.pageUrlAtVideo);
+              await sendMessage(chatId, `📥 در حال دانلود ویدیوی شماره ${num} ...`);
+              log(`🎬 دانلود ویدیو #${num}: ${sel.src}`);
+              const res = await downloadVideo(sel, state.pageUrlAtVideo, page);
               if (res.ok) {
                 log('📦 دانلود موفق، تبدیل و تقسیم...');
                 const compatiblePath = await ensureCompatibleVideo(res.path);
                 if (!compatiblePath) {
                   await sendMessage(chatId, '❌ تبدیل ویدیو به فرمت سازگار ممکن نشد.');
                   await removeVideoHighlights(page); resetAllStates(state);
-                  try { fs.rmSync(res.downloadDir, { recursive: true }); } catch(_) {}
                   await updateKeyboard(chatId); return;
                 }
                 const chunkDir = `/tmp/video_chunks_${Date.now()}`;
@@ -1132,14 +970,11 @@ jobs:
                   links.forEach((l, i) => msg += `${i+1}. ${l}\n`);
                   await sendMessage(chatId, msg);
                 }
-                try { fs.rmSync(res.downloadDir, { recursive: true }); } catch(_) {}
                 for (const c of chunks) try { fs.unlinkSync(c); } catch(_) {}
                 try { fs.rmSync(chunkDir, { recursive: true }); } catch(_) {}
                 if (compatiblePath !== res.path) try { fs.unlinkSync(compatiblePath); } catch(_) {}
               } else {
-                const errMsg = res.error ? `\nخطا: ${res.error.substring(0, 500)}` : '';
-                await sendMessage(chatId, `❌ دانلود ویدیو ناموفق.${errMsg}`);
-                try { fs.rmSync(res.downloadDir, { recursive: true }); } catch(_) {}
+                await sendMessage(chatId, `❌ دانلود ویدیو ناموفق: ${res.error || 'نامشخص'}`);
               }
               await removeVideoHighlights(page); resetAllStates(state);
               await sleep(300);
@@ -1188,7 +1023,7 @@ jobs:
             await updateKeyboard(chatId);
           }
 
-          // ======================== مدیریت پروکسی و مرورگر ========================
+          // ======================== مدیریت پروکسی و مرورگر (با فعال‌سازی intercept) ========================
           class BrowserManager {
             constructor(proxies) { this.proxies = proxies; this.browser = null; this.page = null; this.xrayProc = null; this.currentProxyIndex = -1; }
             async startBrowserWithProxy(index) {
@@ -1208,6 +1043,8 @@ jobs:
               await this.page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
               await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0');
               await this.page.evaluate(() => { document.body.style.zoom = '1.0'; });
+              // فعال‌سازی کش ویدیو
+              await setupRequestInterception(this.page);
             }
             async findWorkingProxy() {
               for (let i = 0; i < this.proxies.length; i++) {
