@@ -467,16 +467,15 @@ jobs:
             });
           }
 
-          // ======================== شناسایی ویدیوهای پیشرفته ========================
+          // ======================== شناسایی و دانلود پیشرفته ویدیوها ========================
           async function highlightVideoElements(page) {
             const pageUrl = page.url();
-            const videoData = await page.evaluate(() => {
+            const videoData = await page.evaluate(async () => {
               const results = [];
               // 1. <video> tags
               document.querySelectorAll('video').forEach(v => {
                 let src = v.currentSrc || v.querySelector('source')?.src || '';
-                results.push({ src, type: 'direct', element: 'video' });
-                // poster often indicates media
+                if (src) results.push({ src, type: 'direct', element: 'video' });
               });
               // 2. Direct video file links
               document.querySelectorAll('a').forEach(a => {
@@ -485,11 +484,10 @@ jobs:
                 if (['mp4','webm','ogg','mov','mkv','avi','flv','wmv','m4v'].includes(ext))
                   results.push({ src: href, type: 'direct', element: 'a' });
               });
-              // 3. Embedded iframes from known platforms + generic iframes with video src patterns
+              // 3. Embedded iframes
               document.querySelectorAll('iframe').forEach(iframe => {
                 const src = iframe.src;
                 if (!src) return;
-                // Known embed platforms
                 if (src.includes('youtube.com/embed/') || src.includes('youtube-nocookie.com/embed/'))
                   results.push({ src, type: 'embed', platform: 'youtube' });
                 else if (src.includes('player.vimeo.com/video/'))
@@ -503,24 +501,23 @@ jobs:
                 else if (src.includes('tiktok.com/embed'))
                   results.push({ src, type: 'embed', platform: 'tiktok' });
                 else if (/\.(mp4|m3u8|webm|mkv|avi|mov|flv|wmv)(\?|$)/i.test(src))
-                  results.push({ src, type: 'direct', element: 'iframe' }); // iframe directly points to video
-                // generic: if src looks like a video URL pattern (common video hosting paths)
+                  results.push({ src, type: 'direct', element: 'iframe' });
                 else if (/video|player|stream|media|watch|clip/i.test(src))
                   results.push({ src, type: 'generic', platform: 'unknown' });
               });
-              // 4. Data attributes or custom video containers (common in some tube sites)
+              // 4. data attributes
               document.querySelectorAll('[data-video-src], [data-src], [data-url]').forEach(el => {
                 const src = el.getAttribute('data-video-src') || el.getAttribute('data-src') || el.getAttribute('data-url');
                 if (src && /\.(mp4|m3u8|webm|mkv|avi|mov|flv|wmv)/i.test(src))
                   results.push({ src, type: 'direct', element: 'data' });
               });
-              // 5. Look for JavaScript objects like window.videoConfig (some sites)
-              // difficult to fully extract but we'll try a few common patterns
+              // 5. JS objects (حالت خاص)
               try {
                 if (window.videoConfig && window.videoConfig.url) results.push({ src: window.videoConfig.url, type: 'direct', element: 'js' });
                 if (window.player && window.player.src) results.push({ src: window.player.src, type: 'direct', element: 'js' });
-              } catch (ex) {}
-              // Deduplicate by src
+              } catch(ex) {}
+
+              // Deduplicate
               const unique = [];
               const seen = new Set();
               for (const r of results) {
@@ -528,16 +525,61 @@ jobs:
                 seen.add(r.src);
                 unique.push(r);
               }
-              return unique.map(r => ({ src: r.src, type: r.type, platform: r.platform || null }));
+
+              // ** دریافت فوری داده blob **
+              for (const item of unique) {
+                if (item.src.startsWith('blob:')) {
+                  try {
+                    const response = await fetch(item.src);
+                    if (response.ok) {
+                      const blob = await response.blob();
+                      const buffer = await blob.arrayBuffer();
+                      const bytes = new Uint8Array(buffer);
+                      let binary = '';
+                      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+                      item.blobDataBase64 = btoa(binary);
+                    }
+                  } catch(e) {
+                    // fallback XHR if fetch fails
+                    try {
+                      const xhrBlobData = await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', item.src, true);
+                        xhr.responseType = 'arraybuffer';
+                        xhr.onload = () => {
+                          if (xhr.status === 200 || xhr.status === 0) {
+                            const bytes = new Uint8Array(xhr.response);
+                            let binary = '';
+                            for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+                            resolve(btoa(binary));
+                          } else reject(new Error('XHR failed'));
+                        };
+                        xhr.onerror = reject;
+                        xhr.send();
+                      });
+                      item.blobDataBase64 = xhrBlobData;
+                    } catch(e2) {
+                      // both failed
+                    }
+                  }
+                }
+              }
+
+              return unique.map(r => ({
+                src: r.src,
+                type: r.type,
+                platform: r.platform || null,
+                blobDataBase64: r.blobDataBase64 || null
+              }));
             });
-            // Assign visual numbers to found elements in page
+
+            // نشانه‌گذاری بصری
             await page.evaluate((list) => {
               document.querySelectorAll('.rubika-hl-badge, .rubika-hl-overlay').forEach(el => el.remove());
               document.querySelectorAll('[data-rubika-video-id]').forEach(el => el.removeAttribute('data-rubika-video-id'));
               list.forEach((item, idx) => {
                 let el = null;
                 if (item.type === 'direct') {
-                  // try to find element by src in video tags, a tags, iframes
                   el = document.querySelector(`video[src="${item.src}"], video source[src="${item.src}"], a[href="${item.src}"], iframe[src="${item.src}"]`);
                   if (!el) el = document.querySelector(`[data-video-src="${item.src}"], [data-src="${item.src}"]`);
                 } else if (item.type === 'embed' || item.type === 'generic') {
@@ -555,6 +597,7 @@ jobs:
                 badge.textContent = num; document.body.appendChild(badge);
               });
             }, videoData);
+
             return { videos: videoData, pageUrl };
           }
 
@@ -680,40 +723,74 @@ jobs:
             return res.success ? { ok: true, path: outPath } : { ok: false };
           }
 
-          // ======================== دانلود blob با مرورگر ========================
-          async function downloadBlobViaBrowser(page, blobUrl, outPath) {
-            log(`🖥️ دانلود blob از طریق مرورگر: ${blobUrl}`);
-            try {
-              const base64Data = await page.evaluate(async (url) => {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-                const blob = await response.blob();
-                const arrayBuffer = await blob.arrayBuffer();
-                const bytes = new Uint8Array(arrayBuffer);
-                let binary = '';
-                for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-                return btoa(binary);
-              }, blobUrl);
-              const buffer = Buffer.from(base64Data, 'base64');
-              fs.writeFileSync(outPath, buffer);
-              log('✅ blob در مرورگر دانلود و ذخیره شد.');
-              return { ok: true, path: outPath };
-            } catch(e) { err('دانلود blob ناموفق:', e.message); return { ok: false, error: e.message }; }
-          }
-
-          // ======================== دانلود پیشرفته ویدیو (چندمرحله‌ای) ========================
+          // ======================== دانلود پیشرفته ویدیو ========================
           async function advancedVideoDownload(page, videoItem, pageUrl) {
-            /*
-              videoItem: { src, type, platform }
-              Returns: { ok: boolean, path?: string (absolute path to downloaded video), downloadDir?: string, error?: string }
-              Attempts multiple strategies sequentially.
-            */
             const src = videoItem.src;
             const downloadDir = `/tmp/video_dl_${Date.now()}`;
             fs.mkdirSync(downloadDir, { recursive: true });
             log(`🎯 شروع دانلود پیشرفته برای: ${src}`);
 
-            // Helper to try yt-dlp with specific arguments
+            // ** اگر داده blob از قبل ذخیره شده، مستقیماً استفاده کن **
+            if (videoItem.blobDataBase64) {
+              const outPath = path.join(downloadDir, `video_${Date.now()}.mp4`);
+              try {
+                fs.writeFileSync(outPath, Buffer.from(videoItem.blobDataBase64, 'base64'));
+                log('✅ داده Blob از کش ذخیره شد.');
+                return { ok: true, path: outPath, downloadDir };
+              } catch(e) {
+                log('❌ ذخیره داده blob از کش ناموفق:', e.message);
+              }
+            }
+
+            // ** اگر blob ولی داده‌ای نداریم، یک بار دیگر تلاش کن از صفحه fetch کنی **
+            if (src.startsWith('blob:')) {
+              log('🔄 تلاش مجدد fetch برای blob از صفحه فعلی...');
+              try {
+                const base64 = await page.evaluate(async (blobUrl) => {
+                  let data = null;
+                  try {
+                    const resp = await fetch(blobUrl);
+                    if (resp.ok) {
+                      const blob = await resp.blob();
+                      const buf = await blob.arrayBuffer();
+                      const bytes = new Uint8Array(buf);
+                      let bin = '';
+                      for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+                      data = btoa(bin);
+                    }
+                  } catch(e) {}
+                  if (!data) {
+                    // fallback XHR
+                    try {
+                      data = await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', blobUrl, true);
+                        xhr.responseType = 'arraybuffer';
+                        xhr.onload = () => {
+                          if (xhr.status === 200 || xhr.status === 0) {
+                            const bytes = new Uint8Array(xhr.response);
+                            let bin = '';
+                            for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+                            resolve(btoa(bin));
+                          } else reject();
+                        };
+                        xhr.onerror = reject;
+                        xhr.send();
+                      });
+                    } catch(e2) {}
+                  }
+                  return data;
+                }, src);
+                if (base64) {
+                  const outPath = path.join(downloadDir, `video_${Date.now()}.mp4`);
+                  fs.writeFileSync(outPath, Buffer.from(base64, 'base64'));
+                  log('✅ داده blob از صفحه بازیابی شد.');
+                  return { ok: true, path: outPath, downloadDir };
+                }
+              } catch(e) { log('❌ تلاش مجدد blob ناموفق:', e.message); }
+            }
+
+            // ** روش‌های دانلود عمومی **
             const tryYtDlp = (targetUrl, extraArgs = []) => {
               const args = [
                 '--no-playlist', '--max-downloads', '1',
@@ -728,153 +805,101 @@ jobs:
               return runSpawn('yt-dlp', args, { timeout: 600000 });
             };
 
-            // Helper to try direct download via aria2c (for direct MP4 links)
-            const tryDirectAria = (videoUrl, outName) => {
-              const outPath = path.join(downloadDir, outName);
-              const args = [
-                '--socks5-proxy=127.0.0.1:10808','--check-certificate=false','-x16','-s16','-k1M',
-                `--user-agent=Mozilla/5.0`,
-                `--referer=${pageUrl}`,
-                `--dir=${downloadDir}`,
-                `--out=${outName}`,
-                videoUrl
-              ];
-              const res = runSpawn('aria2c', args, { timeout: 600000 });
-              return res.success ? { ok: true, path: outPath } : { ok: false, error: res.error };
-            };
-
-            // Helper to try browser fetch for a direct URL (not blob) by creating a new page/tab
-            const tryBrowserFetch = async (videoUrl, outPath) => {
-              log(`🌐 دانلود با fetch مرورگر: ${videoUrl}`);
-              try {
-                const newPage = await page.browser().newPage();
-                await newPage.setRequestInterception(true);
-                newPage.on('request', req => {
-                  if (req.url() === videoUrl) {
-                    req.continue();
-                  } else {
-                    req.abort();
-                  }
-                });
-                await newPage.goto(videoUrl, { waitUntil: 'load', timeout: 30000 }).catch(() => {});
-                const base64Data = await newPage.evaluate(async (url) => {
-                  try {
-                    const res = await fetch(url, { referrerPolicy: 'no-referrer-when-downgrade' });
-                    if (!res.ok) return null;
-                    const buffer = await res.arrayBuffer();
-                    const bytes = new Uint8Array(buffer);
-                    let binary = '';
-                    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-                    return btoa(binary);
-                  } catch(e) { return null; }
-                }, videoUrl);
-                await newPage.close();
-                if (base64Data) {
-                  fs.writeFileSync(outPath, Buffer.from(base64Data, 'base64'));
-                  return { ok: true, path: outPath };
-                }
-              } catch(e) { err('خطا در browser fetch:', e.message); }
-              return { ok: false };
-            };
-
-            // Step 1: If blob: URL, use blob downloader
-            if (src.startsWith('blob:')) {
-              const outPath = path.join(downloadDir, `video_blob_${Date.now()}.mp4`);
-              const res = await downloadBlobViaBrowser(page, src, outPath);
-              if (res.ok) return { ok: true, path: outPath, downloadDir };
-              else log('❌ روش blob ناموفق، ادامه...');
-            }
-
-            // Step 2: If it's a direct video file extension, try aria2c directly
+            // اگر ویدیوی مستقیم (لینک فایل) باشد با aria2c بگیر
             if (/\.(mp4|webm|mkv|avi|mov|flv|wmv)(\?|#|$)/i.test(src)) {
               const ext = src.split('.').pop().split('?')[0].toLowerCase();
               const outName = `video_direct_${Date.now()}.${ext}`;
-              const res = await tryDirectAria(src, outName);
-              if (res.ok) return { ok: true, path: res.path, downloadDir };
-              log('❌ دانلود مستقیم ناموفق، ادامه...');
+              const outPath = path.join(downloadDir, outName);
+              const args = ['--socks5-proxy=127.0.0.1:10808','--check-certificate=false','-x16','-s16','-k1M',
+                `--user-agent=Mozilla/5.0`,`--referer=${pageUrl}`,`--dir=${downloadDir}`,`--out=${outName}`,src];
+              const res = runSpawn('aria2c', args, { timeout: 600000 });
+              if (res.success) return { ok: true, path: outPath, downloadDir };
             }
 
-            // Step 3: Try yt-dlp with pageUrl (most reliable for embedded)
+            // روش yt-dlp روی آدرس خودش
             if (videoItem.type === 'embed' || videoItem.type === 'generic') {
-              log('🔄 روش 1: yt-dlp با آدرس iframe');
+              log('🔄 yt-dlp با آدرس iframe');
               let res = tryYtDlp(src);
-              if (res.success) {
-                const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'));
-                if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir };
-              }
-              // fallback to pageUrl
-              log('🔄 روش 2: yt-dlp با آدرس صفحه');
+              if (res.success) { const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4')||f.endsWith('.mkv')||f.endsWith('.webm')); if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir }; }
+              log('🔄 yt-dlp با آدرس صفحه');
               res = tryYtDlp(pageUrl, ['--referer', pageUrl]);
-              if (res.success) {
-                const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'));
-                if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir };
-              }
+              if (res.success) { const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4')||f.endsWith('.mkv')||f.endsWith('.webm')); if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir }; }
             }
 
-            // Step 4: For direct src but not simple file extension, try yt-dlp on src itself
+            // روش yt-dlp روی آدرس مستقیم (برای direct)
             if (videoItem.type === 'direct') {
-              log('🔄 روش 3: yt-dlp با URL ویدیو');
+              log('🔄 yt-dlp با URL ویدیو');
               const res = tryYtDlp(src, ['--referer', pageUrl]);
-              if (res.success) {
-                const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'));
-                if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir };
-              }
+              if (res.success) { const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4')||f.endsWith('.mkv')||f.endsWith('.webm')); if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir }; }
             }
 
-            // Step 5: Try browser fetch for direct src (maybe it's a raw video)
-            log('🔄 روش 4: fetch مرورگر برای URL مستقیم');
-            const fetchOut = path.join(downloadDir, `video_fetch_${Date.now()}.mp4`);
-            const fetchRes = await tryBrowserFetch(src, fetchOut);
-            if (fetchRes.ok) return { ok: true, path: fetchRes.path, downloadDir };
+            // روش fetch مرورگر برای لینک مستقیم
+            log('🔄 fetch مرورگر برای URL مستقیم');
+            try {
+              const fetchOut = path.join(downloadDir, `video_fetch_${Date.now()}.mp4`);
+              const newPage = await page.browser().newPage();
+              await newPage.setRequestInterception(true);
+              newPage.on('request', req => req.url() === src ? req.continue() : req.abort());
+              await newPage.goto(src, { waitUntil: 'load', timeout: 30000 }).catch(() => {});
+              const b64 = await newPage.evaluate(async (url) => {
+                try {
+                  const res = await fetch(url, { referrerPolicy: 'no-referrer-when-downgrade' });
+                  if (!res.ok) return null;
+                  const buf = await res.arrayBuffer();
+                  const bytes = new Uint8Array(buf);
+                  let bin = '';
+                  for (let i=0;i<bytes.byteLength;i++) bin += String.fromCharCode(bytes[i]);
+                  return btoa(bin);
+                } catch(e) { return null; }
+              }, src);
+              await newPage.close();
+              if (b64) {
+                fs.writeFileSync(fetchOut, Buffer.from(b64, 'base64'));
+                return { ok: true, path: fetchOut, downloadDir };
+              }
+            } catch(e) { log('❌ fetch مرورگر ناموفق:', e.message); }
 
-            // Step 6: If embed type, try to extract direct video URL via puppeteer navigation and interception
-            log('🔄 روش 5: استخراج از iframe با puppeteer');
+            // استخراج از iframe با puppeteer
+            log('🔄 استخراج از iframe با puppeteer');
             try {
               const framePage = await page.browser().newPage();
-              // Intercept network requests to capture video URL
               let capturedVideoUrl = null;
               await framePage.setRequestInterception(true);
               framePage.on('request', req => {
                 const url = req.url();
                 if (/\.(mp4|webm|mkv|avi|flv)($|\?)/i.test(url) || /m3u8/i.test(url)) {
                   capturedVideoUrl = url;
-                  req.abort(); // we don't need to load it, just capture
-                } else {
-                  req.continue();
-                }
+                  req.abort();
+                } else req.continue();
               });
-              // Navigate to iframe src (or use pageUrl and wait for video request)
               await framePage.goto(src, { waitUntil: 'load', timeout: 30000 }).catch(() => {});
-              await sleep(5000); // allow some time for lazy video to appear
+              await sleep(5000);
               if (!capturedVideoUrl) {
-                // maybe the page loads video via JS after interaction; try waiting for network idle
                 await framePage.waitForNetworkIdle({ timeout: 10000 }).catch(() => {});
-                // check again: we can listen for response
-                framePage.on('response', async (res) => {
-                  const url = res.url();
-                  if (/\.(mp4|webm|mkv|avi|flv)($|\?)/i.test(url) || /m3u8/i.test(url)) {
-                    capturedVideoUrl = url;
-                  }
+                framePage.on('response', async (resp) => {
+                  const url = resp.url();
+                  if (/\.(mp4|webm|mkv|avi|flv)($|\?)/i.test(url) || /m3u8/i.test(url)) capturedVideoUrl = url;
                 });
               }
               await framePage.close();
               if (capturedVideoUrl) {
                 log(`🎯 آدرس ویدیو از iframe: ${capturedVideoUrl}`);
                 const outPath = path.join(downloadDir, `video_iframe_${Date.now()}.mp4`);
-                const resAria = await tryDirectAria(capturedVideoUrl, path.basename(capturedVideoUrl.split('?')[0]) || 'video.mp4');
-                if (resAria.ok) return { ok: true, path: resAria.path, downloadDir };
+                const args = ['--socks5-proxy=127.0.0.1:10808','--check-certificate=false','-x16','-s16','-k1M',
+                  `--user-agent=Mozilla/5.0`,`--referer=${pageUrl}`,`--dir=${downloadDir}`,`--out=${path.basename(capturedVideoUrl.split('?')[0]) || 'video.mp4'}`, capturedVideoUrl];
+                const res = runSpawn('aria2c', args, { timeout: 600000 });
+                if (res.success) return { ok: true, path: outPath, downloadDir };
               }
             } catch(e) { log('❌ روش iframe ناموفق:', e.message); }
 
-            // Step 7: Last resort, try yt-dlp with generic extractor (e.g., --force-generic-extractor)
-            log('🔄 روش 6: yt-dlp با extractor عمومی');
-            const res = tryYtDlp(pageUrl, ['--force-generic-extractor', '--referer', pageUrl]);
-            if (res.success) {
-              const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'));
+            // آخرین راه: yt-dlp با --force-generic-extractor روی آدرس صفحه
+            log('🔄 yt-dlp با extractor عمومی');
+            const finalRes = tryYtDlp(pageUrl, ['--force-generic-extractor', '--referer', pageUrl]);
+            if (finalRes.success) {
+              const files = fs.readdirSync(downloadDir).filter(f => f.endsWith('.mp4')||f.endsWith('.mkv')||f.endsWith('.webm'));
               if (files.length) return { ok: true, path: path.join(downloadDir, files[0]), downloadDir };
             }
 
-            // If all fail, return failure
             return { ok: false, error: 'تمام روش‌های دانلود شکست خورد', downloadDir };
           }
 
